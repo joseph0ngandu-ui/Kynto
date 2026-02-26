@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  gateway_service:
+    build: ./gateway_service
+    env_file: .env
+    volumes:
+      - ./gateway_service:/app
+      - ./media_sandbox:/tmp/kynto_media
+    networks:
+      - kynto_internal
+
+  kynto_core:
+    build: ./kynto_core
+    env_file: .env
+    # CRITICAL: No docker.sock mounted here. Zero-Trust enforced.
+    environment:
+      - MCP_SERVER_URL=http://docker_mcp_bridge:8000
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+    volumes:
+      - ./kynto_core/cli_wrapper.py:/home/kynto_agent/sandbox/cli_wrapper.py
+      - ./media_sandbox:/tmp/kynto_media:ro # Read-only for security
+      - ./agent_workspace:/home/kynto_agent/workspace # Dedicated coding sandbox
+    networks:
+      - kynto_internal
+    depends_on:
+      - docker_mcp_bridge
+
+  docker_mcp_bridge:
+    build: ./docker_mcp_bridge
+    volumes:
+      - /run/user/1000/docker.sock:/var/run/docker.sock
+      - ./logs/audit_trail.log:/var/log/kynto_audit.log
+    environment:
+      - ALLOWED_ACTIONS=list,logs,restart,start,stop
+      - ENFORCE_APPEND_ONLY_LOGS=true
+    networks:
+      - kynto_internal
+
+networks:
+  kynto_internal:
+    driver: bridge

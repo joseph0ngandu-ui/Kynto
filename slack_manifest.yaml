@@ -1,0 +1,33 @@
+display_information:
+  name: Kynto
+  description: Autonomous Core Agent (Zero-Trust Environment)
+  background_color: "#1a1a1a"
+features:
+  bot_user:
+    display_name: Kynto
+    always_online: true
+oauth_config:
+  scopes:
+    bot:
+      - chat:write
+      - files:read
+      - files:write
+      - app_mentions:read
+      - channels:history
+      - groups:history
+      - im:history
+      - mpim:history
+settings:
+  event_subscriptions:
+    bot_events:
+      - message.channels
+      - message.groups
+      - message.im
+      - message.mpim
+      - app_mention
+      - file_shared
+  interactivity:
+    is_enabled: true
+  org_deploy_enabled: false
+  socket_mode_enabled: true
+  token_rotation_enabled: false

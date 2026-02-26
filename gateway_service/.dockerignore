@@ -1,0 +1,6 @@
+# Exclude Python source from build context since /app is volume-mounted at runtime.
+# This prevents any code edit from invalidating the 1GB pip install cache layer.
+# Only requirements.txt and Dockerfile matter for the image build.
+*.py
+__pycache__/
+*.pyc
