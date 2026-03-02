@@ -10,20 +10,21 @@ const app = express();
 const DASHBOARD_PASSWORD = process.env.DASHBOARD_PASSWORD || 'admin';
 const JWT_SECRET = process.env.JWT_SECRET || 'kynto-kernel-secure-9912';
 
+// PNA (Private Network Access) Support - MUST BE BEFORE CORS
+app.use((req, res, next) => {
+    res.setHeader('Access-Control-Allow-Private-Network', 'true');
+    if (req.method === 'OPTIONS') {
+        return res.sendStatus(204);
+    }
+    next();
+});
+
 app.use(cors({
     origin: '*',
     methods: ['GET', 'POST', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     exposedHeaders: ['Access-Control-Allow-Private-Network']
 }));
-
-// PNA (Private Network Access) Support
-app.use((req, res, next) => {
-    if (req.method === 'OPTIONS') {
-        res.setHeader('Access-Control-Allow-Private-Network', 'true');
-    }
-    next();
-});
 app.use(express.json());
 
 // Auth Middleware (Industry Standard HMAC-SHA256)
