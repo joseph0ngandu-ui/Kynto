@@ -224,8 +224,14 @@ const AppContent = ({ token, onLogout }) => {
 
         try {
             const [statsRes, logsRes] = await Promise.all([
-                fetch(`${API_BASE_URL}/api/stats`, { headers: { 'Authorization': `Bearer ${token}` } }),
-                fetch(`${API_BASE_URL}/api/audit-logs`, { headers: { 'Authorization': `Bearer ${token}` } })
+                fetch(`${API_BASE_URL}/api/stats`, {
+                    headers: { 'Authorization': `Bearer ${token}` },
+                    signal: AbortSignal.timeout(5000)
+                }),
+                fetch(`${API_BASE_URL}/api/audit-logs`, {
+                    headers: { 'Authorization': `Bearer ${token}` },
+                    signal: AbortSignal.timeout(5000)
+                })
             ]);
 
             if (statsRes.status === 401) {
