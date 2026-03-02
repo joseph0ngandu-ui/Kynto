@@ -5,7 +5,12 @@ const Docker = require('dockerode');
 const docker = new Docker({ socketPath: '/var/run/docker.sock' });
 
 const app = express();
-app.use(cors());
+app.use(cors({
+    origin: '*', // Allow all for now but explicitly mention we're open
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
+app.use(express.json()); // Required for post processing
 
 // Mapping for Natural English Names
 const NAME_MAP = {
