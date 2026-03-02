@@ -160,13 +160,16 @@ const ChatPage = ({ onBack }) => {
         }
 
         try {
-            await fetch(`${API_BASE_URL}/api/conversations/${id}`, {
+            const res = await fetch(`${API_BASE_URL}/api/conversations/${id}`, {
                 method: 'DELETE',
                 headers: { 'Authorization': `Bearer ${getToken()}` }
             });
-            // We don't rollback if it fails, ensuring it stays hidden in UI
+            if (!res.ok) {
+                const data = await res.json();
+                console.warn('Backend persistent deletion warning:', data.error || 'Unknown error');
+            }
         } catch (err) {
-            console.error('Background deletion failed:', err);
+            console.error('Network error during persistent deletion:', err);
         }
     };
 

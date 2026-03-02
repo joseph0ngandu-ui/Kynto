@@ -190,33 +190,24 @@ const Sidebar = ({ currentView, onViewChange, onLogout, collapsed, setCollapsed 
     </div>
 );
 
-const VoiceActivityFeed = () => (
+const VoiceActivityFeed = ({ logs }) => (
     <div className="voice-feed">
         <div className="feed-header">
             <Activity size={14} color="#00ff80" />
-            <span>VOICE_LOGS // REALTIME_FLOW</span>
+            <span>AUDIT_LOGS // REALTIME_FLOW</span>
         </div>
         <div className="feed-content">
-            <div className="log-entry">
-                <span className="timestamp">[22:45:12]</span>
-                <span className="source">AGENT:</span>
-                <span className="message">Synthesizing semantic response...</span>
-            </div>
-            <div className="log-entry">
-                <span className="timestamp">[22:45:10]</span>
-                <span className="source">USER:</span>
-                <span className="message">"How fast does whispered run?"</span>
-            </div>
-            <div className="log-entry success">
-                <span className="timestamp">[22:45:09]</span>
-                <span className="source">SYSTEM:</span>
-                <span className="message">Inference node synchronized.</span>
-            </div>
-            <div className="log-entry muted">
-                <span className="timestamp">[22:45:01]</span>
-                <span className="source">VOICE:</span>
-                <span className="message">Activity detected on primary channel.</span>
-            </div>
+            {logs && logs.length > 0 ? logs.map(log => (
+                <div key={log.id} className={`log-entry ${log.type === 'success' ? 'success' : log.type === 'error' ? 'error' : log.type === 'muted' ? 'muted' : ''}`}>
+                    <span className="timestamp">[{log.timestamp}]</span>
+                    <span className="source">{log.source}:</span>
+                    <span className="message">{log.message}</span>
+                </div>
+            )) : (
+                <div className="log-entry muted">
+                    <span className="message">Waiting for system telemetry...</span>
+                </div>
+            )}
         </div>
     </div>
 );
@@ -224,6 +215,7 @@ const VoiceActivityFeed = () => (
 const AppContent = () => {
     const [token, setToken] = useState(localStorage.getItem('dashboard_token'));
     const [data, setData] = useState(null);
+    const [logs, setLogs] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selectedContainer, setSelectedContainer] = useState(null);
 
@@ -232,16 +224,24 @@ const AppContent = () => {
         if (!currentToken) return;
 
         try {
-            const res = await fetch(`${API_BASE_URL}/api/stats`, {
-                headers: { 'Authorization': `Bearer ${currentToken}` }
-            });
-            if (res.status === 401) {
+            const [statsRes, logsRes] = await Promise.all([
+                fetch(`${API_BASE_URL}/api/stats`, { headers: { 'Authorization': `Bearer ${currentToken}` } }),
+                fetch(`${API_BASE_URL}/api/audit-logs`, { headers: { 'Authorization': `Bearer ${currentToken}` } })
+            ]);
+
+            if (statsRes.status === 401) {
                 localStorage.removeItem('dashboard_token');
                 window.location.reload();
                 return;
             }
-            const json = await res.json();
-            setData(json);
+
+            const [statsJson, logsJson] = await Promise.all([
+                statsRes.json(),
+                logsRes.json()
+            ]);
+
+            setData(statsJson);
+            setLogs(logsJson);
             setLoading(false);
         } catch (err) {
             setLoading(false);
@@ -331,7 +331,7 @@ const AppContent = () => {
                 </section>
 
                 <div className="dashboard-sidebar">
-                    <VoiceActivityFeed />
+                    <VoiceActivityFeed logs={logs} />
                 </div>
             </div>
 
@@ -402,7 +402,7 @@ const App = () => {
     };
 
     if (!token) {
-        return <Login onLoginSuccess={(t) => setToken(t)} />;
+        return <Login onLogin={(t) => setToken(t)} />;
     }
 
     return (

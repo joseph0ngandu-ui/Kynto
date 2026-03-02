@@ -17,6 +17,24 @@ const chatDb = require('./chatDb');
 // In-memory OTP store
 const otpStore = new Map();
 
+// In-memory Audit Logs (Last 50 events)
+const auditLogs = [];
+const addAuditLog = (source, message, type = 'info') => {
+    const log = {
+        id: Date.now() + Math.random(),
+        timestamp: new Date().toLocaleTimeString(),
+        source: source.toUpperCase(),
+        message,
+        type // 'info', 'success', 'error', 'muted'
+    };
+    auditLogs.unshift(log);
+    if (auditLogs.length > 50) auditLogs.pop();
+    console.log(`[AUDIT] ${source}: ${message}`);
+};
+
+// Initial system log
+addAuditLog('SYSTEM', 'Kernel interface synchronized.', 'success');
+
 // PNA (Private Network Access) Support - MUST BE BEFORE CORS
 app.use((req, res, next) => {
     res.setHeader('Access-Control-Allow-Private-Network', 'true');
@@ -56,6 +74,11 @@ const verifyToken = (req, res, next) => {
 // Check Initialization Status
 app.get('/api/auth/status', (req, res) => {
     res.json({ initialized: authDb.isInitialized() });
+});
+
+// Get Audit Logs
+app.get('/api/audit-logs', verifyToken, (req, res) => {
+    res.json(auditLogs);
 });
 
 // Configure NodeMailer for Google SMTP
@@ -349,11 +372,13 @@ app.post('/api/containers/:id/action', verifyToken, async (req, res) => {
             return res.status(400).json({ error: 'Invalid action' });
         }
 
-        console.log(`Executing ${action} on container ${req.params.id}`);
+        // Send to dockerode
         await container[action]();
-        res.json({ status: 'success', message: `Container ${action}ed successfully` });
+        addAuditLog('SYSTEM', `${action.toUpperCase()} signal sent to ${req.params.id.substring(0, 8)}`, 'info');
+        res.json({ success: true });
     } catch (error) {
         console.error(`Error executing ${req.body.action}:`, error);
+        addAuditLog('SYSTEM', `Failed to ${req.body.action} container ${req.params.id.substring(0, 8)}: ${error.message}`, 'error');
         res.status(500).json({ error: error.message });
     }
 });
@@ -421,9 +446,11 @@ app.post('/api/chat', verifyToken, async (req, res) => {
             }
 
             responseText = responseText.replace(/<thinking>[\s\S]*?<\/thinking>/g, '').trim();
+            addAuditLog('AI_CHAT', `Chat message processed: "${message.substring(0, 50)}..."`, 'info');
             return responseText || 'Task completed with no output.';
         } catch (error) {
             console.error('[CHAT_ERROR]', error.message);
+            addAuditLog('AI_CHAT', `Failed to process chat message: ${error.message}`, 'error');
             return error.name === 'AbortError'
                 ? 'Task timed out after 10 minutes. Try breaking it into smaller requests.'
                 : 'Unable to reach the AI engine. Ensure Kynto Core is running.';
@@ -580,6 +607,7 @@ app.post('/api/chat/voice', verifyToken, async (req, res) => {
         });
         const data = await response.json();
         const text = data.transcription || 'Could not transcribe audio.';
+        addAuditLog('VOICE', `Transcription complete: "${text.substring(0, 30)}${text.length > 30 ? '...' : ''}"`, 'info');
 
         // Cleanup
         try { fs.unlinkSync(tmpFile); } catch { }
