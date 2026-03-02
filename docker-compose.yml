@@ -1,9 +1,10 @@
-version: '3.8'
-
 services:
   gateway_service:
     build: ./gateway_service
     env_file: .env
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
     volumes:
       - ./gateway_service:/app
       - ./media_sandbox:/tmp/kynto_media
@@ -17,6 +18,7 @@ services:
     environment:
       - MCP_SERVER_URL=http://docker_mcp_bridge:8000
       - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - GROQ_API_KEY=${GROQ_API_KEY}
     volumes:
       - ./kynto_core/cli_wrapper.py:/home/kynto_agent/sandbox/cli_wrapper.py
       - ./media_sandbox:/tmp/kynto_media:ro # Read-only for security
@@ -31,6 +33,7 @@ services:
     volumes:
       - /run/user/1000/docker.sock:/var/run/docker.sock
       - ./logs/audit_trail.log:/var/log/kynto_audit.log
+      - ./agent_workspace:/workspace # Mount the coding sandbox for deployments
     environment:
       - ALLOWED_ACTIONS=list,logs,restart,start,stop
       - ENFORCE_APPEND_ONLY_LOGS=true
