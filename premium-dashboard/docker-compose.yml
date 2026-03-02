@@ -10,7 +10,7 @@ services:
       - "3001:3001"
     networks:
       - dashboard_net
-      - kynto_internal
+      - kynto_kynto_internal
     restart: always
 
   dashboard-frontend:
@@ -32,5 +32,5 @@ volumes:
 networks:
   dashboard_net:
     driver: bridge
-  kynto_internal:
+  kynto_kynto_internal:
     external: true
