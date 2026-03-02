@@ -10,9 +10,10 @@ const KyntoChat = () => {
         { role: 'assistant', content: 'Kynto online. What do you need?' }
     ]);
     const [input, setInput] = useState('');
-    const [loading, setLoading] = useState(false);
+    const [polling, setPolling] = useState(false);
     const scrollRef = useRef(null);
     const inputRef = useRef(null);
+    const pollRef = useRef(null);
 
     useEffect(() => {
         if (scrollRef.current) {
@@ -26,55 +27,90 @@ const KyntoChat = () => {
         }
     }, [isOpen]);
 
+    // Cleanup polling on unmount
+    useEffect(() => {
+        return () => { if (pollRef.current) clearInterval(pollRef.current); };
+    }, []);
+
+    const getToken = () => localStorage.getItem('dashboard_token') || sessionStorage.getItem('dashboard_token');
+
+    const pollForResult = (taskId) => {
+        setPolling(true);
+        pollRef.current = setInterval(async () => {
+            try {
+                const res = await fetch(`${API_BASE_URL}/api/chat/status/${taskId}`, {
+                    headers: { 'Authorization': `Bearer ${getToken()}` }
+                });
+                const data = await res.json();
+
+                if (data.status === 'done') {
+                    clearInterval(pollRef.current);
+                    pollRef.current = null;
+                    setPolling(false);
+                    setMessages(prev => [...prev, { role: 'assistant', content: data.response || 'Task complete.' }]);
+                }
+            } catch (err) {
+                clearInterval(pollRef.current);
+                pollRef.current = null;
+                setPolling(false);
+                setMessages(prev => [...prev, { role: 'assistant', content: 'Lost connection while waiting for agent response.' }]);
+            }
+        }, 3000); // Poll every 3 seconds
+    };
+
     const sendMessage = async (e) => {
         e.preventDefault();
         const trimmed = input.trim();
-        if (!trimmed || loading) return;
+        if (!trimmed || polling) return;
 
         const userMsg = { role: 'user', content: trimmed };
-        const updatedMessages = [...messages, userMsg];
-        setMessages(updatedMessages);
+        setMessages(prev => [...prev, userMsg]);
         setInput('');
-        setLoading(true);
+
+        // Build history (exclude the initial greeting)
+        const history = [...messages.slice(1), userMsg].map(m => ({
+            role: m.role,
+            content: m.content
+        }));
 
         try {
-            const token = localStorage.getItem('dashboard_token') || sessionStorage.getItem('dashboard_token');
-
-            // Build history for the API (exclude the system greeting)
-            const history = updatedMessages.slice(1).map(m => ({
-                role: m.role,
-                content: m.content
-            }));
-
             const res = await fetch(`${API_BASE_URL}/api/chat`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
+                    'Authorization': `Bearer ${getToken()}`
                 },
                 body: JSON.stringify({ message: trimmed, history })
             });
 
             const data = await res.json();
-            const agentResponse = data.response || data.error || 'No response from agent.';
-            setMessages(prev => [...prev, { role: 'assistant', content: agentResponse }]);
+
+            if (data.taskId) {
+                // AI-generated acknowledgment
+                setMessages(prev => [...prev, {
+                    role: 'assistant',
+                    content: data.ack || 'On it.',
+                    isAck: true
+                }]);
+                pollForResult(data.taskId);
+            } else if (data.response) {
+                // Synchronous response (fast tasks)
+                setMessages(prev => [...prev, { role: 'assistant', content: data.response }]);
+            }
         } catch (err) {
             setMessages(prev => [...prev, {
                 role: 'assistant',
                 content: 'Connection to Kynto Core failed. Is the agent running?'
             }]);
-        } finally {
-            setLoading(false);
         }
     };
 
-    // Simple markdown-ish rendering for code blocks and bold
+    // Simple markdown rendering for code blocks and bold
     const renderContent = (text) => {
-        // Split by code blocks
         const parts = text.split(/(```[\s\S]*?```)/g);
         return parts.map((part, i) => {
             if (part.startsWith('```') && part.endsWith('```')) {
-                const code = part.slice(3, -3).replace(/^\w+\n/, ''); // strip lang identifier
+                const code = part.slice(3, -3).replace(/^\w+\n/, '');
                 return (
                     <pre key={i} style={{
                         background: 'rgba(0,0,0,0.4)',
@@ -90,7 +126,6 @@ const KyntoChat = () => {
                     </pre>
                 );
             }
-            // Convert *bold* to <strong> and `inline code`
             const formatted = part
                 .replace(/\*([^*]+)\*/g, '<strong>$1</strong>')
                 .replace(/`([^`]+)`/g, '<code style="background:rgba(255,255,255,0.1);padding:2px 5px;border-radius:3px;font-size:12px">$1</code>');
@@ -171,7 +206,9 @@ const KyntoChat = () => {
                                 <Bot size={20} color="#3b82f6" />
                                 <div>
                                     <div style={{ fontSize: '14px', fontWeight: 600, color: 'white' }}>Kynto Agent</div>
-                                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Infrastructure AI</div>
+                                    <div style={{ fontSize: '11px', color: polling ? '#22c55e' : 'var(--text-muted)' }}>
+                                        {polling ? 'Working on it...' : 'Infrastructure AI'}
+                                    </div>
                                 </div>
                             </div>
                             <button
@@ -235,55 +272,32 @@ const KyntoChat = () => {
                                     <div style={{
                                         background: msg.role === 'user'
                                             ? 'rgba(99, 102, 241, 0.15)'
-                                            : 'rgba(255,255,255,0.04)',
-                                        border: `1px solid ${msg.role === 'user' ? 'rgba(99, 102, 241, 0.2)' : 'rgba(255,255,255,0.06)'}`,
+                                            : msg.isAck ? 'rgba(34, 197, 94, 0.1)' : 'rgba(255,255,255,0.04)',
+                                        border: `1px solid ${msg.role === 'user' ? 'rgba(99, 102, 241, 0.2)' : msg.isAck ? 'rgba(34, 197, 94, 0.15)' : 'rgba(255,255,255,0.06)'}`,
                                         padding: '10px 14px',
                                         borderRadius: msg.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
                                         maxWidth: '85%',
                                         fontSize: '13px',
                                         lineHeight: '1.5',
-                                        color: 'rgba(255,255,255,0.9)',
-                                        wordBreak: 'break-word'
+                                        color: msg.isAck ? 'rgba(34, 197, 94, 0.9)' : 'rgba(255,255,255,0.9)',
+                                        wordBreak: 'break-word',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '8px'
                                     }}>
-                                        {renderContent(msg.content)}
+                                        {msg.isAck && polling && (
+                                            <motion.div
+                                                animate={{ rotate: 360 }}
+                                                transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+                                                style={{ flexShrink: 0 }}
+                                            >
+                                                <Loader2 size={14} />
+                                            </motion.div>
+                                        )}
+                                        <div>{renderContent(msg.content)}</div>
                                     </div>
                                 </motion.div>
                             ))}
-
-                            {loading && (
-                                <motion.div
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: 1 }}
-                                    style={{ display: 'flex', gap: '8px', alignItems: 'center' }}
-                                >
-                                    <div style={{
-                                        width: '28px', height: '28px', borderRadius: '50%',
-                                        background: 'linear-gradient(135deg, #3b82f6, #06b6d4)',
-                                        display: 'flex', alignItems: 'center', justifyContent: 'center'
-                                    }}>
-                                        <Bot size={14} color="white" />
-                                    </div>
-                                    <div style={{
-                                        background: 'rgba(255,255,255,0.04)',
-                                        border: '1px solid rgba(255,255,255,0.06)',
-                                        padding: '10px 14px',
-                                        borderRadius: '16px 16px 16px 4px',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '8px',
-                                        fontSize: '13px',
-                                        color: 'var(--text-muted)'
-                                    }}>
-                                        <motion.div
-                                            animate={{ rotate: 360 }}
-                                            transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
-                                        >
-                                            <Loader2 size={14} />
-                                        </motion.div>
-                                        Processing...
-                                    </div>
-                                </motion.div>
-                            )}
                         </div>
 
                         {/* Input */}
@@ -302,8 +316,8 @@ const KyntoChat = () => {
                                 type="text"
                                 value={input}
                                 onChange={(e) => setInput(e.target.value)}
-                                placeholder="Message Kynto..."
-                                disabled={loading}
+                                placeholder={polling ? 'Agent is working...' : 'Message Kynto...'}
+                                disabled={polling}
                                 style={{
                                     flex: 1,
                                     background: 'rgba(255,255,255,0.05)',
@@ -312,14 +326,15 @@ const KyntoChat = () => {
                                     borderRadius: '12px',
                                     color: 'white',
                                     outline: 'none',
-                                    fontSize: '14px'
+                                    fontSize: '14px',
+                                    opacity: polling ? 0.5 : 1
                                 }}
                             />
                             <button
                                 type="submit"
-                                disabled={loading || !input.trim()}
+                                disabled={polling || !input.trim()}
                                 style={{
-                                    background: input.trim() ? 'linear-gradient(135deg, #3b82f6, #6366f1)' : 'rgba(255,255,255,0.05)',
+                                    background: input.trim() && !polling ? 'linear-gradient(135deg, #3b82f6, #6366f1)' : 'rgba(255,255,255,0.05)',
                                     border: 'none',
                                     borderRadius: '12px',
                                     width: '42px',
@@ -327,7 +342,7 @@ const KyntoChat = () => {
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
-                                    cursor: input.trim() ? 'pointer' : 'default',
+                                    cursor: input.trim() && !polling ? 'pointer' : 'default',
                                     color: 'white',
                                     transition: 'all 0.2s'
                                 }}

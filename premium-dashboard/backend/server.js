@@ -357,53 +357,123 @@ app.post('/api/containers/:id/action', verifyToken, async (req, res) => {
     }
 });
 
-// Kynto AI Chat Proxy
+// Kynto AI Chat Proxy (Async Pattern)
 const KYNTO_CORE_URL = process.env.KYNTO_CORE_URL || 'http://kynto-kynto_core-1:5000/execute';
+const crypto = require('crypto');
 
+// In-memory task store
+const chatTasks = new Map();
+
+// Cleanup completed tasks after 10 minutes
+setInterval(() => {
+    const now = Date.now();
+    for (const [id, task] of chatTasks) {
+        if (task.completedAt && now - task.completedAt > 600000) {
+            chatTasks.delete(id);
+        }
+    }
+}, 60000);
+
+// POST /api/chat - Accept task, return immediately with ack
 app.post('/api/chat', verifyToken, async (req, res) => {
     const { message, history } = req.body;
     if (!message) return res.status(400).json({ error: 'MISSING_MESSAGE' });
 
-    try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 120000); // 2 min timeout
+    const taskId = crypto.randomBytes(8).toString('hex');
 
-        const response = await fetch(KYNTO_CORE_URL, {
+    // Store task as pending
+    chatTasks.set(taskId, {
+        status: 'processing',
+        message,
+        result: null,
+        createdAt: Date.now(),
+        completedAt: null
+    });
+
+    // Step 1: Get a real AI-generated acknowledgment (fast, no tool calls)
+    let ackText = 'On it.';
+    try {
+        const ackRes = await fetch(KYNTO_CORE_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                system: 'You are Kynto. Plan safely inside <thinking> tags.',
-                task: message,
-                history: history || [],
+                system: 'You are Kynto. The user just sent you a task. Respond with ONLY a brief, natural 1-sentence acknowledgment that you understand and are about to start working on it. Do NOT use any tools. Do NOT actually do the task. Just acknowledge it naturally.',
+                task: `Acknowledge this request (do NOT execute it): "${message}"`,
+                history: [],
                 audio_file: null
             }),
-            signal: controller.signal
+            signal: AbortSignal.timeout(15000)
         });
-
-        clearTimeout(timeout);
-        const data = await response.json();
-
-        // Extract response text (same as gateway_service logic)
-        let responseText = '';
-        if (data.files_changed && data.files_changed.length > 0) {
-            responseText = data.files_changed[0];
-        } else if (data.error_log) {
-            responseText = `Error: ${data.error_log}`;
+        const ackData = await ackRes.json();
+        if (ackData.files_changed && ackData.files_changed[0]) {
+            ackText = ackData.files_changed[0].replace(/<thinking>[\s\S]*?<\/thinking>/g, '').trim();
         }
+    } catch (e) {
+        console.log('[CHAT_ACK] Fast ack failed, using fallback:', e.message);
+    }
 
-        // Strip internal <thinking> tags
-        responseText = responseText.replace(/<thinking>[\s\S]*?<\/thinking>/g, '').trim();
+    // Step 2: Fire-and-forget the real task in background
+    (async () => {
+        try {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 600000);
 
-        // Convert Slack mrkdwn back to standard markdown for web display
-        // (The core formats for Slack, we need standard markdown)
+            const response = await fetch(KYNTO_CORE_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    system: 'You are Kynto. Plan safely inside <thinking> tags.',
+                    task: message,
+                    history: history || [],
+                    audio_file: null
+                }),
+                signal: controller.signal
+            });
 
-        res.json({ response: responseText, status: data.status || 'success' });
-    } catch (error) {
-        console.error('[CHAT_ERROR]', error.message);
-        if (error.name === 'AbortError') {
-            return res.status(504).json({ error: 'KYNTO_CORE_TIMEOUT', response: 'The AI agent took too long to respond. Please try again.' });
+            clearTimeout(timeout);
+            const data = await response.json();
+
+            let responseText = '';
+            if (data.files_changed && data.files_changed.length > 0) {
+                responseText = data.files_changed[0];
+            } else if (data.error_log) {
+                responseText = `Error: ${data.error_log}`;
+            }
+
+            responseText = responseText.replace(/<thinking>[\s\S]*?<\/thinking>/g, '').trim();
+
+            const task = chatTasks.get(taskId);
+            if (task) {
+                task.status = 'done';
+                task.result = responseText;
+                task.completedAt = Date.now();
+            }
+        } catch (error) {
+            console.error('[CHAT_ERROR]', error.message);
+            const task = chatTasks.get(taskId);
+            if (task) {
+                task.status = 'done';
+                task.result = error.name === 'AbortError'
+                    ? 'Task timed out after 10 minutes. Try breaking it into smaller requests.'
+                    : 'Unable to reach the AI engine. Ensure Kynto Core is running.';
+                task.completedAt = Date.now();
+            }
         }
-        res.status(502).json({ error: 'KYNTO_CORE_UNREACHABLE', response: 'Unable to reach the AI engine. Ensure Kynto Core is running.' });
+    })();
+
+    // Return the AI-generated ack + taskId for polling
+    res.json({ taskId, status: 'processing', ack: ackText });
+});
+
+// GET /api/chat/status/:taskId - Poll for result
+app.get('/api/chat/status/:taskId', verifyToken, (req, res) => {
+    const task = chatTasks.get(req.params.taskId);
+    if (!task) return res.status(404).json({ error: 'TASK_NOT_FOUND' });
+
+    if (task.status === 'done') {
+        res.json({ status: 'done', response: task.result });
+    } else {
+        res.json({ status: 'processing' });
     }
 });
 
