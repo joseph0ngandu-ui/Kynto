@@ -571,15 +571,17 @@ app.post('/api/chat/voice', verifyToken, async (req, res) => {
                 history: [],
                 audio_file: audio
             }),
-            signal: AbortSignal.timeout(30000)
+            signal: AbortSignal.timeout(60000)
         });
         const data = await response.json();
-        const text = (data.files_changed && data.files_changed[0]) || 'Could not transcribe audio.';
+        const text = data.transcription || 'Could not transcribe audio.';
 
         // Cleanup
         try { fs.unlinkSync(tmpFile); } catch { }
 
-        res.json({ transcription: text.replace(/<thinking>[\s\S]*?<\/thinking>/g, '').trim() });
+        // Clean thinking tags if any leaked
+        const cleanText = text.replace(/<thinking>[\s\S]*?<\/thinking>/g, '').trim();
+        res.json({ transcription: cleanText });
     } catch (e) {
         console.error('[VOICE_ERROR]', e.message);
         res.status(500).json({ error: 'TRANSCRIPTION_FAILED' });

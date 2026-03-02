@@ -152,7 +152,7 @@ const AppContent = ({ onExpandChat }) => {
             return;
         }
         try {
-            const res = await fetch(`${API_BASE_URL}/api/system/stats`, {
+            const res = await fetch(`${API_BASE_URL}/api/stats`, {
                 headers: { 'Authorization': `Bearer ${currentToken}` }
             });
             if (res.status === 401) {
@@ -216,19 +216,19 @@ const AppContent = ({ onExpandChat }) => {
             <main className="dashboard-grid">
                 <StatCard
                     icon={Activity}
-                    title="System Health"
-                    value={`${data.system.cpu.currentLoad.toFixed(1)}%`}
-                    label="CPU Load"
-                    progress={data.system.cpu.currentLoad}
+                    title="CPU"
+                    value={`${data.system.cpu.load.toFixed(1)}%`}
+                    label="System Load"
+                    progress={data.system.cpu.load}
                     color="var(--accent)"
                     delay={0}
                 />
                 <StatCard
                     icon={Database}
-                    title="Memory Pool"
-                    value={`${(data.system.mem.used / (1024 ** 3)).toFixed(1)}GB`}
-                    label={`${(data.system.mem.free / (1024 ** 3)).toFixed(1)}GB available`}
-                    progress={(data.system.mem.used / data.system.mem.total) * 100}
+                    title="Memory"
+                    value={`${(data.system.memory.used / (1024 ** 3)).toFixed(1)}GB`}
+                    label={`${(data.system.memory.available / (1024 ** 3)).toFixed(1)}GB available`}
+                    progress={(data.system.memory.used / data.system.memory.total) * 100}
                     color="var(--success)"
                     delay={0.1}
                 />
@@ -243,9 +243,9 @@ const AppContent = ({ onExpandChat }) => {
                 />
                 <StatCard
                     icon={HardDrive}
-                    title="Storage Node"
+                    title="Storage"
                     value={`${data.system.disk[0]?.use}%`}
-                    label="NVMe Disk Array"
+                    label="Capacity"
                     progress={data.system.disk[0]?.use}
                     color="var(--text)"
                     delay={0.3}

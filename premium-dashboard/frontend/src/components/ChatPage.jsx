@@ -8,12 +8,75 @@ import {
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://homeserver.taildbc5d3.ts.net';
 
+const RecordingVisualizer = ({ isRecording, stream }) => {
+    const canvasRef = useRef(null);
+    const requestRef = useRef();
+
+    useEffect(() => {
+        if (!isRecording || !stream) return;
+
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const source = audioContext.createMediaStreamSource(stream);
+        const analyser = audioContext.createAnalyser();
+        analyser.fftSize = 256;
+        source.connect(analyser);
+
+        const bufferLength = analyser.frequencyBinCount;
+        const dataArray = new Uint8Array(bufferLength);
+
+        const draw = () => {
+            const canvas = canvasRef.current;
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            const width = canvas.width;
+            const height = canvas.height;
+
+            analyser.getByteFrequencyData(dataArray);
+
+            ctx.clearRect(0, 0, width, height);
+            const barWidth = (width / bufferLength) * 2.5;
+            let barHeight;
+            let x = 0;
+
+            for (let i = 0; i < bufferLength; i++) {
+                barHeight = (dataArray[i] / 255) * height;
+                ctx.fillStyle = `rgb(255, 51, 51)`;
+                ctx.fillRect(x, height - barHeight, barWidth, barHeight);
+                x += barWidth + 1;
+            }
+
+            requestRef.current = requestAnimationFrame(draw);
+        };
+
+        draw();
+
+        return () => {
+            cancelAnimationFrame(requestRef.current);
+            audioContext.close();
+        };
+    }, [isRecording, stream]);
+
+    return (
+        <canvas
+            ref={canvasRef}
+            width="100"
+            height="30"
+            style={{
+                opacity: isRecording ? 1 : 0,
+                transition: 'opacity 0.3s ease',
+                marginRight: '12px'
+            }}
+        />
+    );
+};
+
 const ChatPage = ({ onBack }) => {
     const [conversations, setConversations] = useState([]);
     const [currentConvId, setCurrentConvId] = useState(null);
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState('');
     const [isRecording, setIsRecording] = useState(false);
+    const [stream, setStream] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
     const [polling, setPolling] = useState(false);
 
@@ -85,16 +148,23 @@ const ChatPage = ({ onBack }) => {
 
     const deleteConversation = async (e, id) => {
         e.stopPropagation();
-        if (!confirm('Are you sure you want to delete this conversation?')) return;
+        // Remove confirm() as per user request for "instant" feel
+
+        // Optimistic update - No rollback to fulfill "at least hide it"
+        setConversations(prev => (Array.isArray(prev) ? prev.filter(c => c.id !== id) : []));
+        if (currentConvId === id) {
+            setCurrentConvId(null);
+            setMessages([]);
+        }
+
         try {
             await fetch(`${API_BASE_URL}/api/conversations/${id}`, {
                 method: 'DELETE',
                 headers: { 'Authorization': `Bearer ${getToken()}` }
             });
-            setConversations(conversations.filter(c => c.id !== id));
-            if (currentConvId === id) setCurrentConvId(null);
+            // We don't rollback if it fails, ensuring it stays hidden in UI
         } catch (err) {
-            console.error('Failed to delete conversation', err);
+            console.error('Background deletion failed:', err);
         }
     };
 
@@ -122,14 +192,13 @@ const ChatPage = ({ onBack }) => {
         }, 3000);
     };
 
-    const handleSendMessage = async (e) => {
+    const handleSendMessage = async (e, directMsg = null, skipUserUpdate = false) => {
         e?.preventDefault();
-        const msg = input.trim();
+        const msg = directMsg || input.trim();
         if (!msg || polling) return;
 
         let convId = currentConvId;
         if (!convId) {
-            // Auto-create if no conversation selected
             try {
                 const res = await fetch(`${API_BASE_URL}/api/conversations`, {
                     method: 'POST',
@@ -148,8 +217,10 @@ const ChatPage = ({ onBack }) => {
             }
         }
 
-        setMessages(prev => [...prev, { role: 'user', content: msg }]);
-        setInput('');
+        if (!skipUserUpdate) {
+            setMessages(prev => [...prev, { role: 'user', content: msg, id: Date.now() }]);
+            setInput('');
+        }
 
         try {
             const res = await fetch(`${API_BASE_URL}/api/conversations/${convId}/message`, {
@@ -163,13 +234,13 @@ const ChatPage = ({ onBack }) => {
             const data = await res.json();
 
             if (data.status === 'done' && data.response) {
-                setMessages(prev => [...prev, { role: 'assistant', content: data.response }]);
+                setMessages(prev => [...prev, { role: 'assistant', content: data.response, id: Date.now() }]);
                 fetchConversations();
             } else if (data.taskId) {
                 pollForResult(data.taskId);
             }
         } catch (err) {
-            setMessages(prev => [...prev, { role: 'assistant', content: 'Failed to send message.' }]);
+            setMessages(prev => [...prev, { role: 'assistant', content: 'Failed to send message.', id: Date.now() }]);
         }
     };
 
@@ -177,6 +248,7 @@ const ChatPage = ({ onBack }) => {
     const startRecording = async () => {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            setStream(stream);
             const mediaRecorder = new MediaRecorder(stream);
             mediaRecorderRef.current = mediaRecorder;
             audioChunksRef.current = [];
@@ -192,6 +264,16 @@ const ChatPage = ({ onBack }) => {
                 reader.onloadend = async () => {
                     const base64Audio = reader.result.split(',')[1];
                     setIsLoading(true);
+
+                    // 1. Add User Placeholder
+                    const userMsgId = 'voice-' + Date.now();
+                    setMessages(prev => [...prev, {
+                        role: 'user',
+                        content: '_Voice Note Recording..._',
+                        id: userMsgId,
+                        isProcessing: true
+                    }]);
+
                     try {
                         const res = await fetch(`${API_BASE_URL}/api/chat/voice`, {
                             method: 'POST',
@@ -202,10 +284,19 @@ const ChatPage = ({ onBack }) => {
                             body: JSON.stringify({ audio: base64Audio })
                         });
                         const data = await res.json();
+
                         if (data.transcription) {
-                            setInput(data.transcription);
+                            // 2. Update User message with real text
+                            setMessages(prev => prev.map(m =>
+                                m.id === userMsgId ? { ...m, content: data.transcription, isProcessing: false } : m
+                            ));
+                            // 3. Trigger AI send (skipping user update since we already added it)
+                            handleSendMessage(null, data.transcription, true);
+                        } else {
+                            throw new Error('Transcription failed');
                         }
                     } catch (err) {
+                        setMessages(prev => prev.filter(m => m.id !== userMsgId));
                         console.error('Transcription failed', err);
                     } finally {
                         setIsLoading(false);
@@ -223,7 +314,8 @@ const ChatPage = ({ onBack }) => {
     const stopRecording = () => {
         mediaRecorderRef.current?.stop();
         setIsRecording(false);
-        mediaRecorderRef.current?.stream.getTracks().forEach(track => track.stop());
+        stream?.getTracks().forEach(track => track.stop());
+        setStream(null);
     };
 
     const renderContent = (text) => {
@@ -240,6 +332,8 @@ const ChatPage = ({ onBack }) => {
             }
             const formatted = part
                 .replace(/\*([^*]+)\*/g, '<strong>$1</strong>')
+                .replace(/_([^_]+)_/g, '<em>$1</em>')
+                .replace(/\n/g, '<br/>')
                 .replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>');
             return <span key={i} dangerouslySetInnerHTML={{ __html: formatted }} />;
         });
@@ -280,7 +374,6 @@ const ChatPage = ({ onBack }) => {
                         <div className="user-avatar">J</div>
                         <div className="user-info">
                             <span className="user-name">Joseph</span>
-                            <span className="user-status">Pro Plan</span>
                         </div>
                     </div>
                 </div>
@@ -314,6 +407,7 @@ const ChatPage = ({ onBack }) => {
                                     </div>
                                     <div className="message-bubble">
                                         {renderContent(msg.content)}
+                                        {msg.isProcessing && <Loader2 size={12} className="spin" style={{ marginLeft: '8px', display: 'inline-block', verticalAlign: 'middle', opacity: 0.5 }} />}
                                     </div>
                                 </motion.div>
                             ))}
@@ -334,19 +428,8 @@ const ChatPage = ({ onBack }) => {
                 {/* Input Subsystem */}
                 <div className="chat-input-container">
                     <form className="chat-input-form" onSubmit={handleSendMessage}>
-                        <div className="input-wrapper">
-                            <textarea
-                                value={input}
-                                onChange={(e) => setInput(e.target.value)}
-                                placeholder="Message Kynto Kernel..."
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter' && !e.shiftKey) {
-                                        e.preventDefault();
-                                        handleSendMessage();
-                                    }
-                                }}
-                            />
-                            <div className="input-actions">
+                        <div className={`input-wrapper ${isRecording ? 'is-recording' : ''}`}>
+                            <div className="input-left-actions">
                                 <button
                                     type="button"
                                     className={`action-btn ${isRecording ? 'recording' : ''}`}
@@ -355,14 +438,39 @@ const ChatPage = ({ onBack }) => {
                                 >
                                     {isRecording ? <Square size={18} fill="#ff3333" /> : <Mic size={18} />}
                                 </button>
-                                <button
-                                    type="submit"
-                                    className="send-btn"
-                                    disabled={!input.trim() || polling || isLoading}
-                                >
-                                    {isLoading ? <Loader2 size={18} className="spin" /> : <Send size={18} />}
-                                </button>
                             </div>
+
+                            {isRecording ? (
+                                <div className="recording-status">
+                                    <RecordingVisualizer isRecording={isRecording} stream={stream} />
+                                    <span className="recording-label">Recording...</span>
+                                    {isLoading && <Loader2 size={14} className="spin" />}
+                                </div>
+                            ) : (
+                                <textarea
+                                    value={input}
+                                    onChange={(e) => setInput(e.target.value)}
+                                    placeholder="Message Kynto Kernel..."
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter' && !e.shiftKey) {
+                                            e.preventDefault();
+                                            handleSendMessage();
+                                        }
+                                    }}
+                                />
+                            )}
+
+                            {!isRecording && (
+                                <div className="input-right-actions">
+                                    <button
+                                        type="submit"
+                                        className="send-btn"
+                                        disabled={!input.trim() || polling || isLoading}
+                                    >
+                                        {isLoading ? <Loader2 size={18} className="spin" /> : <Send size={18} />}
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     </form>
                     <p className="input-disclaimer">Kynto can make mistakes. Verify critical actions.</p>
@@ -650,45 +758,63 @@ const ChatPage = ({ onBack }) => {
                 .input-wrapper {
                     background: rgba(255,255,255,0.05);
                     border: 1px solid rgba(255,255,255,0.1);
-                    border-radius: 16px;
+                    border-radius: 20px;
                     display: flex;
-                    flex-direction: column;
-                    padding: 12px;
-                    transition: border-color 0.2s;
+                    align-items: center;
+                    padding: 8px 12px;
+                    transition: all 0.3s ease;
+                    gap: 12px;
                 }
 
-                .input-wrapper:focus-within {
+                .input-wrapper.is-recording {
                     border-color: #ff3333;
+                    background: rgba(255, 51, 51, 0.05);
+                }
+
+                .recording-status {
+                    flex: 1;
+                    display: flex;
+                    align-items: center;
+                    gap: 16px;
+                }
+
+                .recording-label {
+                    color: #ff3333;
+                    font-size: 14px;
+                    font-weight: 500;
+                    letter-spacing: 0.5px;
                 }
 
                 textarea {
+                    flex: 1;
                     background: none;
                     border: none;
                     color: #fff;
                     resize: none;
-                    height: 60px;
+                    height: 24px;
                     font-family: inherit;
                     font-size: 14px;
                     outline: none;
-                    padding: 8px;
+                    padding: 4px;
+                    line-height: 1.4;
                 }
 
-                .input-actions {
+                .input-left-actions, .input-right-actions {
                     display: flex;
-                    justify-content: space-between;
                     align-items: center;
-                    padding-top: 8px;
-                    border-top: 1px solid rgba(255,255,255,0.05);
                 }
 
                 .action-btn {
                     background: none;
                     border: none;
-                    color: #555;
+                    color: #888;
                     cursor: pointer;
-                    padding: 8px;
+                    padding: 6px;
                     border-radius: 50%;
                     transition: all 0.2s;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
                 }
 
                 .action-btn:hover {

@@ -16,11 +16,16 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     iputils-ping \
     curl \
     git \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
-# Install required Python packages for the web service
+# Install required Python packages
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install openai requests aiohttp groq
+    pip install openai requests aiohttp groq openai-whisper torch
+
+# Pre-download Whisper models to a system-wide cache
+RUN mkdir -p /usr/share/whisper && chmod 777 /usr/share/whisper
+RUN python -c "import whisper; whisper.load_model('base', download_root='/usr/share/whisper'); whisper.load_model('tiny', download_root='/usr/share/whisper')"
 
 COPY cli_wrapper.py .
 USER kynto_agent
