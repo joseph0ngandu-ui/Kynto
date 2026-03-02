@@ -199,6 +199,7 @@ const App = () => {
             setError(null);
         } catch (err) {
             setError('OFFLINE');
+            setLoading(false);
         }
     };
 
@@ -233,6 +234,43 @@ const App = () => {
                 >
                     KYNTO
                 </motion.h2>
+            </div>
+        </div>
+    );
+
+    if (!data) return (
+        <div className="error-screen app-container">
+            <header className="main-header">
+                <div className="brand-stack">
+                    <NeuralLogo size={50} />
+                    <div>
+                        <h1>Sal's Server Dashboard</h1>
+                        <p>SYSTEM OFFLINE</p>
+                    </div>
+                </div>
+                <div className="live-status">
+                    <span className="err-badge">OFFLINE</span>
+                </div>
+            </header>
+            <div className="error-content">
+                <motion.div
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="glass-card"
+                    style={{ textAlign: 'center', margin: '40px auto', maxWidth: '500px' }}
+                >
+                    <Activity size={48} color="var(--accent)" style={{ marginBottom: '20px' }} />
+                    <h2>Connection Lost</h2>
+                    <p style={{ color: 'var(--text-muted)' }}>
+                        Unable to connect to the backend at:<br />
+                        <code style={{ background: 'rgba(0,0,0,0.3)', padding: '4px 8px', borderRadius: '4px', display: 'inline-block', marginTop: '8px' }}>
+                            {API_BASE_URL}
+                        </code>
+                    </p>
+                    <button className="action-btn" onClick={fetchData} style={{ margin: '20px auto 0' }}>
+                        <RefreshCw size={14} style={{ marginRight: '8px' }} /> Retry Connection
+                    </button>
+                </motion.div>
             </div>
         </div>
     );
