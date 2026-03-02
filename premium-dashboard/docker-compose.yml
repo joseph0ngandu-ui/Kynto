@@ -1,0 +1,29 @@
+version: '3.8'
+services:
+  dashboard-backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    volumes:
+      - /run/user/1000/docker.sock:/var/run/docker.sock
+    ports:
+      - "3001:3001"
+    networks:
+      - dashboard_net
+    restart: always
+
+  dashboard-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    networks:
+      - dashboard_net
+    depends_on:
+      - dashboard-backend
+    restart: always
+
+networks:
+  dashboard_net:
+    driver: bridge
