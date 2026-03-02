@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
     Activity, Server, Database, Box, Cpu, HardDrive,
     RefreshCw, TrendingUp, Shield, Clock, Terminal, Info, X,
-    Play, Square, RotateCcw
+    Play, Square, RotateCcw, LayoutDashboard, MessageSquare,
+    Settings, LogOut, ChevronRight
 } from 'lucide-react';
 import Login from './components/Login';
 import NeuralLogo from './components/NeuralLogo';
@@ -138,27 +139,62 @@ const LoaderOverlay = () => (
     </div>
 );
 
-const AppContent = ({ onExpandChat }) => {
-    const [token, setToken] = useState(localStorage.getItem('dashboard_token') || sessionStorage.getItem('dashboard_token'));
+const Sidebar = ({ currentView, onViewChange, onLogout }) => (
+    <div className="side-nav">
+        <div className="nav-brand">
+            <NeuralLogo size={32} />
+            <span className="brand-text">KYNTO</span>
+        </div>
+
+        <nav className="nav-links">
+            <button
+                className={`nav-link ${currentView === 'dashboard' ? 'active' : ''}`}
+                onClick={() => onViewChange('dashboard')}
+            >
+                <LayoutDashboard size={20} />
+                <span>Dashboard</span>
+            </button>
+            <button
+                className={`nav-link ${currentView === 'chat' ? 'active' : ''}`}
+                onClick={() => onViewChange('chat')}
+            >
+                <MessageSquare size={20} />
+                <span>Kynto Chat</span>
+            </button>
+        </nav>
+
+        <div className="nav-spacer" />
+
+        <div className="nav-footer">
+            <button className="nav-link settings">
+                <Settings size={20} />
+                <span>Settings</span>
+            </button>
+            <button className="nav-link logout" onClick={onLogout}>
+                <LogOut size={20} />
+                <span>Sign Out</span>
+            </button>
+        </div>
+    </div>
+);
+
+const AppContent = () => {
+    const [token, setToken] = useState(localStorage.getItem('dashboard_token'));
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [selectedContainer, setSelectedContainer] = useState(null);
 
     const fetchData = async () => {
-        const currentToken = localStorage.getItem('dashboard_token') || sessionStorage.getItem('dashboard_token');
-        if (!currentToken) {
-            setToken(null);
-            setLoading(false);
-            return;
-        }
+        const currentToken = localStorage.getItem('dashboard_token');
+        if (!currentToken) return;
+
         try {
             const res = await fetch(`${API_BASE_URL}/api/stats`, {
                 headers: { 'Authorization': `Bearer ${currentToken}` }
             });
             if (res.status === 401) {
                 localStorage.removeItem('dashboard_token');
-                setToken(null);
-                setLoading(false);
+                window.location.reload();
                 return;
             }
             const json = await res.json();
@@ -182,37 +218,16 @@ const AppContent = ({ onExpandChat }) => {
     };
 
     useEffect(() => {
-        if (token) {
-            fetchData();
-            const interval = setInterval(fetchData, 5000);
-            return () => clearInterval(interval);
-        } else {
-            setLoading(false);
-        }
-    }, [token]);
+        fetchData();
+        const interval = setInterval(fetchData, 5000);
+        return () => clearInterval(interval);
+    }, []);
 
     if (loading && !data) return <LoaderOverlay />;
-    if (!token) return <Login onLoginSuccess={(t) => { setToken(t); fetchData(); }} />;
     if (!data) return <LoaderOverlay />;
 
     return (
-        <div className="app-container">
-            <header className="main-header">
-                <div className="brand-stack">
-                    <NeuralLogo />
-                    <div>
-                        <h1>TactiCore Dashboard</h1>
-                        <p>Infrastructure AI System</p>
-                    </div>
-                </div>
-                <div className="live-status">
-                    <div className="live-badge">
-                        <div className="pulse-dot" />
-                        SYSTEM_OPERATIONAL
-                    </div>
-                </div>
-            </header>
-
+        <>
             <main className="dashboard-grid">
                 <StatCard
                     icon={Activity}
@@ -227,7 +242,7 @@ const AppContent = ({ onExpandChat }) => {
                     icon={Database}
                     title="Memory"
                     value={`${(data.system.memory.used / (1024 ** 3)).toFixed(1)}GB`}
-                    label={`${(data.system.memory.available / (1024 ** 3)).toFixed(1)}GB available`}
+                    label="Memory Pool"
                     progress={(data.system.memory.used / data.system.memory.total) * 100}
                     color="var(--success)"
                     delay={0.1}
@@ -245,7 +260,7 @@ const AppContent = ({ onExpandChat }) => {
                     icon={HardDrive}
                     title="Storage"
                     value={`${data.system.disk[0]?.use}%`}
-                    label="Capacity"
+                    label="NVMe Disk Array"
                     progress={data.system.disk[0]?.use}
                     color="var(--text)"
                     delay={0.3}
@@ -260,7 +275,7 @@ const AppContent = ({ onExpandChat }) => {
                     </div>
                 </div>
                 <div className="container-grid">
-                    <AnimatePresence>
+                    <AnimatePresence mode="popLayout">
                         {data.docker.map((c, i) => (
                             <ContainerCard
                                 key={c.id}
@@ -282,26 +297,203 @@ const AppContent = ({ onExpandChat }) => {
                     />
                 )}
             </AnimatePresence>
-
-            <footer className="footer">
-                <div className="footer-left">Kynto Vault v7.2</div>
-                <div className="footer-right"><TrendingUp size={14} /> Secure Tunnel Active</div>
-            </footer>
-
-            <KyntoChat onExpand={onExpandChat} />
-        </div>
+        </>
     );
 };
 
 const App = () => {
-    const [currentView, setCurrentView] = useState('dashboard');
+    const [token, setToken] = useState(localStorage.getItem('dashboard_token'));
+    const [currentView, setCurrentView] = useState(() => localStorage.getItem('kynto_view') || 'dashboard');
 
-    if (currentView === 'chat') {
-        return <ChatPage onBack={() => setCurrentView('dashboard')} />;
+    useEffect(() => {
+        localStorage.setItem('kynto_view', currentView);
+    }, [currentView]);
+
+    const handleLogout = () => {
+        localStorage.removeItem('dashboard_token');
+        setToken(null);
+    };
+
+    if (!token) {
+        return <Login onLoginSuccess={(t) => setToken(t)} />;
     }
 
     return (
-        <AppContent onExpandChat={() => setCurrentView('chat')} />
+        <div className="app-shell">
+            <Sidebar
+                currentView={currentView}
+                onViewChange={setCurrentView}
+                onLogout={handleLogout}
+            />
+
+            <div className="content-area">
+                <header className="main-header">
+                    <div className="view-title">
+                        {currentView === 'dashboard' ? 'Infrastructure Dashboard' : 'Kynto Intelligence Interface'}
+                    </div>
+                    <div className="live-status">
+                        <div className="live-badge">
+                            <div className="pulse-dot" />
+                            SYSTEM_OPERATIONAL
+                        </div>
+                    </div>
+                </header>
+
+                <div className="view-container">
+                    {currentView === 'dashboard' ? (
+                        <AppContent />
+                    ) : (
+                        <ChatPage onBack={() => setCurrentView('dashboard')} />
+                    )}
+                </div>
+            </div>
+
+            <KyntoChat onExpand={() => setCurrentView('chat')} />
+
+            <style jsx>{`
+                .app-shell {
+                    display: flex;
+                    height: 100vh;
+                    width: 100vw;
+                    background: #000;
+                    overflow: hidden;
+                }
+
+                .side-nav {
+                    width: 240px;
+                    background: #050505;
+                    border-right: 1px solid rgba(255,255,255,0.05);
+                    display: flex;
+                    flex-direction: column;
+                    padding: 24px 12px;
+                    z-index: 100;
+                }
+
+                .nav-brand {
+                    display: flex;
+                    align-items: center;
+                    gap: 12px;
+                    padding: 0 12px 32px;
+                }
+
+                .brand-text {
+                    font-size: 18px;
+                    font-weight: 700;
+                    letter-spacing: 0.1em;
+                    color: #fff;
+                }
+
+                .nav-links {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 8px;
+                }
+
+                .nav-link {
+                    background: none;
+                    border: none;
+                    color: #888;
+                    display: flex;
+                    align-items: center;
+                    gap: 12px;
+                    padding: 12px;
+                    border-radius: 12px;
+                    cursor: pointer;
+                    font-size: 14px;
+                    transition: all 0.2s;
+                    text-align: left;
+                }
+
+                .nav-link:hover {
+                    background: rgba(255,255,255,0.05);
+                    color: #fff;
+                }
+
+                .nav-link.active {
+                    background: rgba(255, 51, 51, 0.1);
+                    color: #fff;
+                    box-shadow: inset 0 0 12px rgba(255, 51, 51, 0.05);
+                }
+
+                .nav-spacer {
+                    flex: 1;
+                }
+
+                .nav-footer {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 8px;
+                    padding-top: 24px;
+                    border-top: 1px solid rgba(255,255,255,0.05);
+                }
+
+                .content-area {
+                    flex: 1;
+                    display: flex;
+                    flex-direction: column;
+                    overflow: hidden;
+                    position: relative;
+                }
+
+                .main-header {
+                    height: 72px;
+                    border-bottom: 1px solid rgba(255,255,255,0.05);
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    padding: 0 32px;
+                    background: rgba(0,0,0,0.5);
+                    backdrop-filter: blur(20px);
+                }
+
+                .view-title {
+                    font-size: 14px;
+                    font-weight: 600;
+                    color: #fff;
+                    letter-spacing: 0.05em;
+                }
+
+                .view-container {
+                    flex: 1;
+                    padding: 32px;
+                    overflow-y: auto;
+                }
+
+                .live-badge {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    background: rgba(0, 255, 128, 0.1);
+                    color: #00ff80;
+                    padding: 6px 14px;
+                    border-radius: 20px;
+                    font-size: 11px;
+                    font-weight: 700;
+                    letter-spacing: 0.1em;
+                    border: 1px solid rgba(0, 255, 128, 0.2);
+                }
+
+                .pulse-dot {
+                    width: 6px;
+                    height: 6px;
+                    background: #00ff80;
+                    border-radius: 50%;
+                    animation: pulse-green 2s infinite;
+                }
+
+                @keyframes pulse-green {
+                    0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 255, 128, 0.7); }
+                    70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(0, 255, 128, 0); }
+                    100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 255, 128, 0); }
+                }
+
+                @media (max-width: 1024px) {
+                    .side-nav {
+                        display: none;
+                    }
+                }
+            `}</style>
+        </div>
     );
 };
 
