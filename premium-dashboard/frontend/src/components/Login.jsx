@@ -65,7 +65,8 @@ const Login = ({ onLogin }) => {
                                 borderRadius: '12px',
                                 color: 'white',
                                 outline: 'none',
-                                transition: 'all 0.3s ease'
+                                transition: 'all 0.3s ease',
+                                fontSize: '16px'
                             }}
                             autoFocus
                         />
