@@ -215,6 +215,56 @@ body,
 
 .mini-progress { height: 2px; background: rgba(255, 255, 255, 0.05); }
 
+.container-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+}
+
+.action-btn {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    padding: 8px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.action-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text);
+    border-color: var(--text-muted);
+    transform: translateY(-2px);
+}
+
+.action-btn.success:hover {
+    background: rgba(0, 255, 157, 0.1);
+    color: var(--success);
+    border-color: var(--success);
+    box-shadow: 0 0 15px rgba(0, 255, 157, 0.2);
+}
+
+.action-btn.danger:hover {
+    background: rgba(255, 51, 51, 0.1);
+    color: var(--accent);
+    border-color: var(--accent);
+    box-shadow: 0 0 15px var(--accent-glow);
+}
+
+.action-divider {
+    width: 1px;
+    height: 16px;
+    background: var(--border);
+    margin: 0 4px;
+}
+
 .footer {
     margin-top: 64px;
     padding-top: 24px;

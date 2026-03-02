@@ -147,4 +147,23 @@ app.get('/api/containers/:id/logs', async (req, res) => {
     }
 });
 
+// NEW: Container Control Actions
+app.post('/api/containers/:id/action', async (req, res) => {
+    try {
+        const { action } = req.body;
+        const container = docker.getContainer(req.params.id);
+
+        if (!['start', 'stop', 'restart'].includes(action)) {
+            return res.status(400).json({ error: 'Invalid action' });
+        }
+
+        console.log(`Executing ${action} on container ${req.params.id}`);
+        await container[action]();
+        res.json({ status: 'success', message: `Container ${action}ed successfully` });
+    } catch (error) {
+        console.error(`Error executing ${req.body.action}:`, error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 app.listen(3001, '0.0.0.0', () => console.log('Backend on 3001'));

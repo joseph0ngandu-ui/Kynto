@@ -2,8 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Activity, Server, Database, Box, Cpu, HardDrive,
-    RefreshCw, TrendingUp, Shield, Clock, Terminal, Info, X
+    RefreshCw, TrendingUp, Shield, Clock, Terminal, Info, X,
+    Play, Square, RotateCcw
 } from 'lucide-react';
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://homeserver.taildbc5d3.ts.net';
 
 const StatCard = ({ icon: Icon, title, value, label, progress, color, delay = 0 }) => (
     <motion.div
@@ -33,14 +36,13 @@ const StatCard = ({ icon: Icon, title, value, label, progress, color, delay = 0 
     </motion.div>
 );
 
-const ContainerCard = ({ container, idx, onLogs }) => (
+const ContainerCard = ({ container, idx, onLogs, onAction }) => (
     <motion.div
         className="container-card"
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ delay: idx * 0.05 }}
-        onClick={() => onLogs(container)}
-        style={{ cursor: 'pointer' }}
+        style={{ cursor: 'default' }}
     >
         <div className="container-header">
             <div className="container-title">
@@ -64,6 +66,19 @@ const ContainerCard = ({ container, idx, onLogs }) => (
                 <div className="mini-progress"><div style={{ width: `${container.memPercent}%`, background: 'var(--success)', height: '100%' }}></div></div>
             </div>
         </div>
+
+        <div className="container-actions">
+            <button className="action-btn" onClick={() => onLogs(container)} title="View Logs"><Terminal size={14} /></button>
+            <div className="action-divider" />
+            {container.state !== 'running' ? (
+                <button className="action-btn success" onClick={() => onAction(container.id, 'start')} title="Start"><Play size={14} /></button>
+            ) : (
+                <>
+                    <button className="action-btn danger" onClick={() => onAction(container.id, 'stop')} title="Stop"><Square size={14} /></button>
+                    <button className="action-btn" onClick={() => onAction(container.id, 'restart')} title="Restart"><RotateCcw size={14} /></button>
+                </>
+            )}
+        </div>
     </motion.div>
 );
 
@@ -74,7 +89,7 @@ const LogOverlay = ({ container, onClose }) => {
     useEffect(() => {
         const fetchLogs = async () => {
             try {
-                const res = await fetch(`https://homeserver.taildbc5d3.ts.net/api/containers/${container.id}/logs`);
+                const res = await fetch(`${API_BASE_URL}/api/containers/${container.id}/logs`);
                 const data = await res.json();
                 setLogs(data.logs || 'No log output found.');
             } catch (err) {
@@ -176,7 +191,7 @@ const App = () => {
 
     const fetchData = async () => {
         try {
-            const res = await fetch(`https://homeserver.taildbc5d3.ts.net/api/stats`);
+            const res = await fetch(`${API_BASE_URL}/api/stats`);
             if (!res.ok) throw new Error('Refusal');
             const json = await res.json();
             setData(json);
@@ -184,6 +199,20 @@ const App = () => {
             setError(null);
         } catch (err) {
             setError('OFFLINE');
+        }
+    };
+
+    const handleAction = async (id, action) => {
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/containers/${id}/action`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action })
+            });
+            if (!res.ok) throw new Error('Action failed');
+            fetchData(); // Refresh data after action
+        } catch (err) {
+            console.error('Action error:', err);
         }
     };
 
@@ -272,6 +301,7 @@ const App = () => {
                                 container={c}
                                 idx={i}
                                 onLogs={(cont) => setSelectedContainer(cont)}
+                                onAction={handleAction}
                             />
                         ))}
                     </AnimatePresence>
