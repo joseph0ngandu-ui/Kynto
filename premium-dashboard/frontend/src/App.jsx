@@ -5,6 +5,7 @@ import {
     RefreshCw, TrendingUp, Shield, Clock, Terminal, Info, X,
     Play, Square, RotateCcw
 } from 'lucide-react';
+import Login from './components/Login';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://homeserver.taildbc5d3.ts.net';
 
@@ -88,12 +89,16 @@ const LogOverlay = ({ container, onClose }) => {
 
     useEffect(() => {
         const fetchLogs = async () => {
+            const token = localStorage.getItem('dashboard_token');
             try {
-                const res = await fetch(`${API_BASE_URL}/api/containers/${container.id}/logs`);
+                const res = await fetch(`${API_BASE_URL}/api/containers/${container.id}/logs`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!res.ok) throw new Error('Unauth');
                 const data = await res.json();
                 setLogs(data.logs || 'No log output found.');
             } catch (err) {
-                setLogs('ERROR_FETCHING_LOGS');
+                setLogs('ERROR_FETCHING_LOGS (UNAUTHORIZED)');
             } finally {
                 setLoading(false);
             }
@@ -184,14 +189,19 @@ const NeuralLogo = ({ size = 64 }) => {
 };
 
 const App = () => {
-    const [data, setData] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
-    const [selectedContainer, setSelectedContainer] = useState(null);
+    const [token, setToken] = useState(localStorage.getItem('dashboard_token'));
 
     const fetchData = async () => {
+        if (!token) return;
         try {
-            const res = await fetch(`${API_BASE_URL}/api/stats`);
+            const res = await fetch(`${API_BASE_URL}/api/stats`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.status === 401) {
+                localStorage.removeItem('dashboard_token');
+                setToken(null);
+                return;
+            }
             if (!res.ok) throw new Error('Refusal');
             const json = await res.json();
             setData(json);
@@ -207,21 +217,33 @@ const App = () => {
         try {
             const res = await fetch(`${API_BASE_URL}/api/containers/${id}/action`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
                 body: JSON.stringify({ action })
             });
+            if (res.status === 401) {
+                localStorage.removeItem('dashboard_token');
+                setToken(null);
+                return;
+            }
             if (!res.ok) throw new Error('Action failed');
-            fetchData(); // Refresh data after action
+            fetchData();
         } catch (err) {
             console.error('Action error:', err);
         }
     };
 
     useEffect(() => {
-        fetchData();
-        const interval = setInterval(fetchData, 4000);
-        return () => clearInterval(interval);
-    }, []);
+        if (token) {
+            fetchData();
+            const interval = setInterval(fetchData, 4000);
+            return () => clearInterval(interval);
+        }
+    }, [token]);
+
+    if (!token) return <Login onLogin={setToken} />;
 
     if (loading) return (
         <div className="loader-overlay">

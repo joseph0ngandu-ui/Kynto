@@ -124,7 +124,7 @@ app.get('/api/stats', async (req, res) => {
 });
 
 // NEW: Lightweight Log Fetching
-app.get('/api/containers/:id/logs', async (req, res) => {
+app.get('/api/containers/:id/logs', verifyToken, async (req, res) => {
     try {
         const container = docker.getContainer(req.params.id);
         const logs = await container.logs({
@@ -153,7 +153,7 @@ app.get('/api/containers/:id/logs', async (req, res) => {
 });
 
 // NEW: Container Control Actions
-app.post('/api/containers/:id/action', async (req, res) => {
+app.post('/api/containers/:id/action', verifyToken, async (req, res) => {
     try {
         const { action } = req.body;
         const container = docker.getContainer(req.params.id);
