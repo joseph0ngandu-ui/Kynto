@@ -9,6 +9,12 @@ const docker = new Docker({ socketPath: '/var/run/docker.sock' });
 const app = express();
 const DASHBOARD_PASSWORD = process.env.DASHBOARD_PASSWORD || 'admin';
 const JWT_SECRET = process.env.JWT_SECRET || 'kynto-kernel-secure-9912';
+const OTP_SECRET = process.env.OTP_SECRET || 'kynto-otp-secure-9912';
+
+const authDb = require('./authDb');
+
+// In-memory OTP store
+const otpStore = new Map();
 
 // PNA (Private Network Access) Support - MUST BE BEFORE CORS
 app.use((req, res, next) => {
@@ -46,20 +52,149 @@ const verifyToken = (req, res, next) => {
     }
 };
 
-// Secure Login Entity
+// Check Initialization Status
+app.get('/api/auth/status', (req, res) => {
+    res.json({ initialized: authDb.isInitialized() });
+});
+
+// Configure NodeMailer for Google SMTP
+const nodemailer = require('nodemailer');
+const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: { user: 'homekynto.ai@gmail.com', pass: 'fdot pcbv wvjn ugjj' }
+});
+
+// Helper: Generate OTP
+const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
+
+// 1. Request OTP (Setup or Reset)
+app.post('/api/auth/request-otp', async (req, res) => {
+    const { email } = req.body;
+    if (!email || !/\S+@\S+\.\S+/.test(email)) {
+        return res.status(400).json({ error: 'INVALID_EMAIL' });
+    }
+
+    const isInit = authDb.isInitialized();
+
+    // If initialized, verify it matches the registered email to prevent enumeration
+    if (isInit) {
+        const registeredEmail = authDb.getEmail();
+        if (email.toLowerCase() !== registeredEmail.toLowerCase()) {
+            console.warn(`[AUTH_WARN] OTP requested for unregistered email: ${email}`);
+            // Return success anyway to avoid leaking whether email exists
+            return res.json({ success: true, message: 'OTP sent if email matches records.' });
+        }
+    }
+
+    const otp = generateOTP();
+    otpStore.set(email.toLowerCase(), {
+        otp,
+        expiresAt: Date.now() + 10 * 60 * 1000, // 10 mins
+        type: isInit ? 'reset' : 'setup'
+    });
+
+    const mailOptions = {
+        from: 'homekynto.ai@gmail.com',
+        to: email,
+        subject: isInit ? 'Kynto Vault - Password Reset OTP' : 'Kynto Vault - Initial Setup OTP',
+        html: `
+            <div style="font-family: Arial, sans-serif; padding: 20px; background-color: #f4f4f4;">
+                <h2 style="color: #333;">Kynto Vault</h2>
+                <p>Your one-time password (OTP) for ${isInit ? 'password reset' : 'account setup'} is:</p>
+                <div style="background-color: #fff; padding: 20px; font-size: 24px; font-weight: bold; letter-spacing: 5px; text-align: center; border: 2px solid #007bff; border-radius: 8px; margin: 20px 0;">
+                    ${otp}
+                </div>
+                <p style="font-size: 14px; color: #555;">This code will expire in 10 minutes.</p>
+                <p style="font-size: 12px; color: #777; margin-top: 30px;">If you did not request this email, please secure your server immediately.</p>
+            </div>
+        `
+    };
+
+    try {
+        await transporter.sendMail(mailOptions);
+        console.log(`[AUTH_INFO] OTP sent to ${email}`);
+        res.json({ success: true, message: 'OTP sent successfully.' });
+    } catch (error) {
+        console.error('[AUTH_ERROR] Error sending email:', error);
+        res.status(500).json({ error: 'FAILED_TO_SEND_EMAIL' });
+    }
+});
+
+// 2. Verify OTP
+app.post('/api/auth/verify-otp', (req, res) => {
+    const { email, otp } = req.body;
+    if (!email || !otp) return res.status(400).json({ error: 'MISSING_FIELDS' });
+
+    const emailKey = email.toLowerCase();
+    const record = otpStore.get(emailKey);
+
+    if (!record || record.otp !== otp || Date.now() > record.expiresAt) {
+        return res.status(401).json({ error: 'INVALID_OR_EXPIRED_OTP' });
+    }
+
+    // OTP verified, create a temporary action token
+    const actionToken = jwt.sign(
+        { email: emailKey, type: record.type, action: 'set-password' },
+        OTP_SECRET,
+        { expiresIn: '15m' }
+    );
+
+    otpStore.delete(emailKey); // consume OTP
+    res.json({ actionToken });
+});
+
+// 3. Set/Reset Password
+app.post('/api/auth/set-password', async (req, res) => {
+    const { actionToken, password } = req.body;
+    if (!actionToken || !password || password.length < 8) {
+        return res.status(400).json({ error: 'INVALID_INPUT_OR_PASSWORD_TOO_SHORT' });
+    }
+
+    try {
+        const decoded = jwt.verify(actionToken, OTP_SECRET);
+
+        if (decoded.action !== 'set-password') {
+            return res.status(400).json({ error: 'INVALID_TOKEN_TYPE' });
+        }
+
+        const isInit = authDb.isInitialized();
+        if (decoded.type === 'setup' && isInit) {
+            return res.status(400).json({ error: 'SYSTEM_ALREADY_INITIALIZED' });
+        }
+        if (decoded.type === 'reset' && !isInit) {
+            return res.status(400).json({ error: 'SYSTEM_NOT_INITIALIZED' });
+        }
+
+        await authDb.saveAccount(decoded.email, password);
+        console.log(`[AUTH_INFO] Password ${decoded.type} successful for ${decoded.email}`);
+
+        // Automatically log them in
+        const token = jwt.sign({ sub: decoded.email, iat: Math.floor(Date.now() / 1000) }, JWT_SECRET, { expiresIn: '24h' });
+        res.json({ token, message: 'Password configured successfully.' });
+    } catch (err) {
+        res.status(401).json({ error: 'INVALID_OR_EXPIRED_ACTION_TOKEN' });
+    }
+});
+
+// 4. Standard Login Entity
 app.post('/api/auth/login', async (req, res) => {
     const { password } = req.body;
 
-    // DEBUG: Diagnose Chrome vs Safari discrepancy
-    console.log(`[AUTH_DEBUG] Attempt from ${req.ip} | UA: ${req.headers['user-agent']?.substring(0, 50)}...`);
-    console.log(`[AUTH_DEBUG] Received length: ${password?.length} | Expected length: ${DASHBOARD_PASSWORD?.length}`);
+    if (!authDb.isInitialized()) {
+        return res.status(400).json({ error: 'NOT_INITIALIZED_SETUP_REQUIRED' });
+    }
 
-    if (password && password.trim() === DASHBOARD_PASSWORD.trim()) {
-        const token = jwt.sign({ sub: 'admin', iat: Math.floor(Date.now() / 1000) }, JWT_SECRET, { expiresIn: '24h' });
+    // DEBUG: Diagnose Chrome vs Safari discrepancy
+    console.log(`[AUTH_DEBUG] Login Attempt from ${req.ip} | UA: ${req.headers['user-agent']?.substring(0, 50)}...`);
+
+    const isValid = await authDb.verifyPassword(password);
+
+    if (isValid) {
+        const token = jwt.sign({ sub: authDb.getEmail(), iat: Math.floor(Date.now() / 1000) }, JWT_SECRET, { expiresIn: '24h' });
         return res.json({ token });
     }
 
-    console.warn(`[AUTH_DEBUG] Login failed for password attempt (first 2 chars): ${password?.substring(0, 2)}...`);
+    console.warn(`[AUTH_WARN] Login failed for password attempt (first 2 chars): ${password?.substring(0, 2)}...`);
     res.status(401).json({ error: 'CREDENTIAL_INVALID' });
 });
 
