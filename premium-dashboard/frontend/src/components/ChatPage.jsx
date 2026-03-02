@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import {
     MessageSquare, Plus, Trash2, Send, Mic, Square,
     ChevronLeft, Bot, User, Loader2, ArrowLeft,
@@ -320,23 +322,29 @@ const ChatPage = ({ onBack }) => {
 
     const renderContent = (text) => {
         if (!text) return null;
-        const parts = text.split(/(```[\s\S]*?```)/g);
-        return parts.map((part, i) => {
-            if (part.startsWith('```') && part.endsWith('```')) {
-                const code = part.slice(3, -3).replace(/^\w+\n/, '');
-                return (
-                    <pre key={i} className="code-block">
-                        <code>{code.trim()}</code>
-                    </pre>
-                );
-            }
-            const formatted = part
-                .replace(/\*([^*]+)\*/g, '<strong>$1</strong>')
-                .replace(/_([^_]+)_/g, '<em>$1</em>')
-                .replace(/\n/g, '<br/>')
-                .replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>');
-            return <span key={i} dangerouslySetInnerHTML={{ __html: formatted }} />;
-        });
+        return (
+            <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={{
+                    table: ({ node, ...props }) => (
+                        <div className="table-container">
+                            <table {...props} />
+                        </div>
+                    ),
+                    code: ({ node, inline, className, children, ...props }) => {
+                        return inline ? (
+                            <code className="inline-code" {...props}>{children}</code>
+                        ) : (
+                            <pre className="code-block">
+                                <code {...props}>{children}</code>
+                            </pre>
+                        );
+                    }
+                }}
+            >
+                {text}
+            </ReactMarkdown>
+        );
     };
 
     return (
@@ -832,6 +840,83 @@ const ChatPage = ({ onBack }) => {
                     0% { transform: scale(1); opacity: 1; }
                     50% { transform: scale(1.1); opacity: 0.8; }
                     100% { transform: scale(1); opacity: 1; }
+                }
+
+                /* Markdown Styles */
+                .message-bubble {
+                    overflow-wrap: break-word;
+                }
+                
+                .message-bubble table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin: 12px 0;
+                    font-size: 13px;
+                    border: 1px solid rgba(255,255,255,0.1);
+                }
+
+                .message-bubble th, .message-bubble td {
+                    border: 1px solid rgba(255,255,255,0.1);
+                    padding: 8px 12px;
+                    text-align: left;
+                }
+
+                .message-bubble th {
+                    background: rgba(255,255,255,0.05);
+                    font-weight: 600;
+                }
+
+                .message-bubble tr:nth-child(even) {
+                    background: rgba(255,255,255,0.02);
+                }
+
+                .message-bubble ul, .message-bubble ol {
+                    margin: 8px 0;
+                    padding-left: 24px;
+                }
+
+                .message-bubble li {
+                    margin: 4px 0;
+                }
+
+                .message-bubble blockquote {
+                    border-left: 3px solid #ff3333;
+                    background: rgba(255,51,51,0.05);
+                    margin: 12px 0;
+                    padding: 8px 16px;
+                    font-style: italic;
+                }
+
+                .inline-code {
+                    background: rgba(255,51,51,0.1);
+                    color: #ff3333;
+                    padding: 2px 6px;
+                    border-radius: 4px;
+                    font-size: 12px;
+                    font-family: 'JetBrains Mono', monospace;
+                }
+
+                .code-block {
+                    background: #0a0a0a !important;
+                    border: 1px solid rgba(255,255,255,0.1);
+                    border-radius: 8px;
+                    padding: 16px;
+                    margin: 12px 0;
+                    overflow-x: auto;
+                }
+
+                .code-block code {
+                    font-family: 'JetBrains Mono', monospace;
+                    font-size: 13px;
+                    line-height: 1.5;
+                    color: #d1d5db;
+                }
+
+                .table-container {
+                    width: 100%;
+                    overflow-x: auto;
+                    border-radius: 8px;
+                    margin: 12px 0;
                 }
 
                 .send-btn {

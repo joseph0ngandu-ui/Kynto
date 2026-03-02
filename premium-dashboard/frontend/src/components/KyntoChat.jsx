@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { MessageCircle, X, Send, Bot, User, Loader2, Maximize2 } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://homeserver.taildbc5d3.ts.net';
@@ -107,30 +109,42 @@ const KyntoChat = ({ onExpand }) => {
 
     // Simple markdown rendering for code blocks and bold
     const renderContent = (text) => {
-        const parts = text.split(/(```[\s\S]*?```)/g);
-        return parts.map((part, i) => {
-            if (part.startsWith('```') && part.endsWith('```')) {
-                const code = part.slice(3, -3).replace(/^\w+\n/, '');
-                return (
-                    <pre key={i} style={{
-                        background: 'rgba(0,0,0,0.4)',
-                        padding: '10px 12px',
-                        borderRadius: '8px',
-                        fontSize: '12px',
-                        overflowX: 'auto',
-                        margin: '8px 0',
-                        whiteSpace: 'pre-wrap',
-                        wordBreak: 'break-word'
-                    }}>
-                        <code>{code.trim()}</code>
-                    </pre>
-                );
-            }
-            const formatted = part
-                .replace(/\*([^*]+)\*/g, '<strong>$1</strong>')
-                .replace(/`([^`]+)`/g, '<code style="background:rgba(255,255,255,0.1);padding:2px 5px;border-radius:3px;font-size:12px">$1</code>');
-            return <span key={i} dangerouslySetInnerHTML={{ __html: formatted }} />;
-        });
+        if (!text) return null;
+        return (
+            <div className="markdown-content">
+                <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                        table: ({ node, ...props }) => (
+                            <div style={{ overflowX: 'auto', margin: '8px 0', borderRadius: '8px' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }} {...props} />
+                            </div>
+                        ),
+                        th: ({ node, ...props }) => (
+                            <th style={{ border: '1px solid rgba(255,255,255,0.1)', padding: '6px 10px', background: 'rgba(255,255,255,0.05)', textAlign: 'left' }} {...props} />
+                        ),
+                        td: ({ node, ...props }) => (
+                            <td style={{ border: '1px solid rgba(255,255,255,0.1)', padding: '6px 10px', textAlign: 'left' }} {...props} />
+                        ),
+                        code: ({ node, inline, children, ...props }) => {
+                            if (inline) {
+                                return <code style={{ background: 'rgba(255,255,255,0.1)', padding: '2px 4px', borderRadius: '4px', fontSize: '11px', fontFamily: 'monospace' }} {...props}>{children}</code>;
+                            }
+                            return (
+                                <pre style={{ background: 'rgba(0,0,0,0.3)', padding: '12px', borderRadius: '8px', overflowX: 'auto', margin: '8px 0' }}>
+                                    <code style={{ fontSize: '11px', fontFamily: 'monospace', color: '#ccc' }} {...props}>{children}</code>
+                                </pre>
+                            );
+                        },
+                        ul: ({ node, ...props }) => <ul style={{ margin: '8px 0', paddingLeft: '20px' }} {...props} />,
+                        ol: ({ node, ...props }) => <ol style={{ margin: '8px 0', paddingLeft: '20px' }} {...props} />,
+                        li: ({ node, ...props }) => <li style={{ margin: '4px 0' }} {...props} />
+                    }}
+                >
+                    {text}
+                </ReactMarkdown>
+            </div>
+        );
     };
 
     return (
