@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MessageCircle, X, Send, Bot, User, Loader2 } from 'lucide-react';
+import { MessageCircle, X, Send, Bot, User, Loader2, Maximize2 } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://homeserver.taildbc5d3.ts.net';
 
-const KyntoChat = () => {
+const KyntoChat = ({ onExpand }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [messages, setMessages] = useState([
         { role: 'assistant', content: 'Kynto online. What do you need?' }
@@ -211,20 +211,37 @@ const KyntoChat = () => {
                                     </div>
                                 </div>
                             </div>
-                            <button
-                                onClick={() => setIsOpen(false)}
-                                style={{
-                                    background: 'rgba(255,255,255,0.05)',
-                                    border: 'none',
-                                    color: 'var(--text-muted)',
-                                    cursor: 'pointer',
-                                    padding: '6px',
-                                    borderRadius: '8px',
-                                    display: 'flex'
-                                }}
-                            >
-                                <X size={18} />
-                            </button>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <button
+                                    onClick={onExpand}
+                                    style={{
+                                        background: 'rgba(255,255,255,0.05)',
+                                        border: 'none',
+                                        color: 'var(--text-muted)',
+                                        cursor: 'pointer',
+                                        padding: '6px',
+                                        borderRadius: '8px',
+                                        display: 'flex'
+                                    }}
+                                    title="Full-page chat"
+                                >
+                                    <Maximize2 size={16} />
+                                </button>
+                                <button
+                                    onClick={() => setIsOpen(false)}
+                                    style={{
+                                        background: 'rgba(255,255,255,0.05)',
+                                        border: 'none',
+                                        color: 'var(--text-muted)',
+                                        cursor: 'pointer',
+                                        padding: '6px',
+                                        borderRadius: '8px',
+                                        display: 'flex'
+                                    }}
+                                >
+                                    <X size={18} />
+                                </button>
+                            </div>
                         </div>
 
                         {/* Messages */}

@@ -12,6 +12,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'kynto-kernel-secure-9912';
 const OTP_SECRET = process.env.OTP_SECRET || 'kynto-otp-secure-9912';
 
 const authDb = require('./authDb');
+const chatDb = require('./chatDb');
 
 // In-memory OTP store
 const otpStore = new Map();
@@ -34,7 +35,7 @@ app.use(cors({
     allowedHeaders: ['Content-Type', 'Authorization', 'Access-Control-Allow-Private-Network'],
     exposedHeaders: ['Access-Control-Allow-Private-Network']
 }));
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
 // Auth Middleware (Industry Standard HMAC-SHA256)
 const verifyToken = (req, res, next) => {
@@ -465,6 +466,123 @@ app.get('/api/chat/status/:taskId', verifyToken, (req, res) => {
         res.json({ status: 'done', response: task.result });
     } else {
         res.json({ status: 'processing' });
+    }
+});
+
+// ===== CONVERSATION CRUD =====
+
+app.get('/api/conversations', verifyToken, (req, res) => {
+    res.json(chatDb.listConversations());
+});
+
+app.post('/api/conversations', verifyToken, (req, res) => {
+    const id = crypto.randomBytes(8).toString('hex');
+    const conv = chatDb.createConversation(id, req.body.title || 'New Chat');
+    res.json({ id, ...conv });
+});
+
+app.get('/api/conversations/:id', verifyToken, (req, res) => {
+    const conv = chatDb.getConversation(req.params.id);
+    if (!conv) return res.status(404).json({ error: 'NOT_FOUND' });
+    res.json({ id: req.params.id, ...conv });
+});
+
+app.delete('/api/conversations/:id', verifyToken, (req, res) => {
+    const ok = chatDb.deleteConversation(req.params.id);
+    if (!ok) return res.status(404).json({ error: 'NOT_FOUND' });
+    res.json({ success: true });
+});
+
+// Send message in a conversation (race pattern: fast sync, slow async)
+app.post('/api/conversations/:id/message', verifyToken, async (req, res) => {
+    const { message } = req.body;
+    const convId = req.params.id;
+    if (!message) return res.status(400).json({ error: 'MISSING_MESSAGE' });
+
+    let conv = chatDb.getConversation(convId);
+    if (!conv) return res.status(404).json({ error: 'CONVERSATION_NOT_FOUND' });
+
+    // Save user message
+    chatDb.addMessage(convId, 'user', message);
+
+    const taskId = crypto.randomBytes(8).toString('hex');
+    chatTasks.set(taskId, { status: 'processing', result: null, createdAt: Date.now(), completedAt: null });
+
+    // Build history from conversation
+    conv = chatDb.getConversation(convId);
+    const history = conv.messages.map(m => ({ role: m.role, content: m.content }));
+
+    const taskPromise = (async () => {
+        try {
+            const controller = new AbortController();
+            const hardTimeout = setTimeout(() => controller.abort(), 600000);
+            const response = await fetch(KYNTO_CORE_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ system: 'You are Kynto. Plan safely inside <thinking> tags.', task: message, history, audio_file: null }),
+                signal: controller.signal
+            });
+            clearTimeout(hardTimeout);
+            const data = await response.json();
+            let text = (data.files_changed && data.files_changed[0]) || data.error_log || 'No output.';
+            text = text.replace(/<thinking>[\s\S]*?<\/thinking>/g, '').trim();
+            return text;
+        } catch (e) {
+            return e.name === 'AbortError' ? 'Task timed out.' : 'Unable to reach AI engine.';
+        }
+    })();
+
+    const raceTimeout = new Promise(r => setTimeout(() => r('__TIMEOUT__'), 10000));
+    const result = await Promise.race([taskPromise, raceTimeout]);
+
+    if (result !== '__TIMEOUT__') {
+        chatDb.addMessage(convId, 'assistant', result);
+        chatTasks.delete(taskId);
+        return res.json({ status: 'done', response: result });
+    }
+
+    res.json({ taskId, status: 'processing' });
+    taskPromise.then(finalResult => {
+        chatDb.addMessage(convId, 'assistant', finalResult);
+        const task = chatTasks.get(taskId);
+        if (task) { task.status = 'done'; task.result = finalResult; task.completedAt = Date.now(); }
+    });
+});
+
+// Voice transcription via Whisper on kynto_core
+app.post('/api/chat/voice', verifyToken, async (req, res) => {
+    const { audio } = req.body; // base64-encoded audio
+    if (!audio) return res.status(400).json({ error: 'MISSING_AUDIO' });
+
+    try {
+        // Write to temp file, send to kynto_core's whisper
+        const fs = require('fs');
+        const os = require('os');
+        const tmpFile = require('path').join(os.tmpdir(), `voice_${Date.now()}.webm`);
+        fs.writeFileSync(tmpFile, Buffer.from(audio, 'base64'));
+
+        // Use kynto_core's bash to transcribe
+        const response = await fetch(KYNTO_CORE_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                system: 'Transcribe the audio and return ONLY the transcription text. Nothing else.',
+                task: 'Transcribe the uploaded audio file.',
+                history: [],
+                audio_file: audio
+            }),
+            signal: AbortSignal.timeout(30000)
+        });
+        const data = await response.json();
+        const text = (data.files_changed && data.files_changed[0]) || 'Could not transcribe audio.';
+
+        // Cleanup
+        try { fs.unlinkSync(tmpFile); } catch { }
+
+        res.json({ transcription: text.replace(/<thinking>[\s\S]*?<\/thinking>/g, '').trim() });
+    } catch (e) {
+        console.error('[VOICE_ERROR]', e.message);
+        res.status(500).json({ error: 'TRANSCRIPTION_FAILED' });
     }
 });
 

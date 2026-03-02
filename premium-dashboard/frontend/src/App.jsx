@@ -8,6 +8,7 @@ import {
 import Login from './components/Login';
 import NeuralLogo from './components/NeuralLogo';
 import KyntoChat from './components/KyntoChat';
+import ChatPage from './components/ChatPage';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://homeserver.taildbc5d3.ts.net';
 
@@ -96,11 +97,10 @@ const LogOverlay = ({ container, onClose }) => {
                 const res = await fetch(`${API_BASE_URL}/api/containers/${container.id}/logs`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
-                if (!res.ok) throw new Error('Unauth');
                 const data = await res.json();
                 setLogs(data.logs || 'No log output found.');
             } catch (err) {
-                setLogs('ERROR_FETCHING_LOGS (UNAUTHORIZED)');
+                setLogs('ERROR_FETCHING_LOGS');
             } finally {
                 setLoading(false);
             }
@@ -109,194 +109,143 @@ const LogOverlay = ({ container, onClose }) => {
     }, [container.id]);
 
     return (
-        <motion.div
-            className="log-overlay"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-        >
-            <motion.div
-                className="log-window"
-                initial={{ scale: 0.9, y: 20 }}
-                animate={{ scale: 1, y: 0 }}
-            >
+        <motion.div className="log-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <motion.div className="log-window" initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }}>
                 <div className="log-header">
-                    <div className="log-title">
-                        <Terminal size={16} />
-                        <span>{container.name} // Debug Console</span>
-                    </div>
+                    <div className="log-title"><Terminal size={16} /><span>{container.name} // Console</span></div>
                     <button className="close-btn" onClick={onClose}><X size={20} /></button>
                 </div>
                 <div className="log-content">
-                    {loading ? (
-                        <div className="log-spinner">SYNCING_STREAMS...</div>
-                    ) : (
-                        <pre>{logs}</pre>
-                    )}
+                    {loading ? <div className="log-spinner">SYNCING...</div> : <pre>{logs}</pre>}
                 </div>
             </motion.div>
         </motion.div>
     );
 };
 
+const LoaderOverlay = () => (
+    <div className="loader-overlay">
+        <NeuralLogo size={120} />
+        <div className="loader-text">
+            <motion.h2
+                initial={{ opacity: 0, letterSpacing: "1.2em" }}
+                animate={{ opacity: 1, letterSpacing: "0.6em" }}
+                transition={{ duration: 2, ease: [0.23, 1, 0.32, 1] }}
+            >
+                KYNTO
+            </motion.h2>
+        </div>
+    </div>
+);
 
-
-const App = () => {
+const AppContent = ({ onExpandChat }) => {
     const [token, setToken] = useState(localStorage.getItem('dashboard_token') || sessionStorage.getItem('dashboard_token'));
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
     const [selectedContainer, setSelectedContainer] = useState(null);
 
     const fetchData = async () => {
-        if (!token) return;
+        const currentToken = localStorage.getItem('dashboard_token') || sessionStorage.getItem('dashboard_token');
+        if (!currentToken) {
+            setToken(null);
+            setLoading(false);
+            return;
+        }
         try {
-            const res = await fetch(`${API_BASE_URL}/api/stats`, {
-                headers: { 'Authorization': `Bearer ${token}` }
+            const res = await fetch(`${API_BASE_URL}/api/system/stats`, {
+                headers: { 'Authorization': `Bearer ${currentToken}` }
             });
             if (res.status === 401) {
                 localStorage.removeItem('dashboard_token');
                 setToken(null);
+                setLoading(false);
                 return;
             }
-            if (!res.ok) throw new Error('Refusal');
             const json = await res.json();
             setData(json);
             setLoading(false);
-            setError(null);
         } catch (err) {
-            setError('OFFLINE');
             setLoading(false);
         }
     };
 
     const handleAction = async (id, action) => {
         try {
-            const res = await fetch(`${API_BASE_URL}/api/containers/${id}/action`, {
+            await fetch(`${API_BASE_URL}/api/containers/${id}/${action}`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({ action })
+                headers: { 'Authorization': `Bearer ${token}` }
             });
-            if (res.status === 401) {
-                localStorage.removeItem('dashboard_token');
-                setToken(null);
-                return;
-            }
-            if (!res.ok) throw new Error('Action failed');
             fetchData();
         } catch (err) {
-            console.error('Action error:', err);
+            console.error('Action failed', err);
         }
     };
 
     useEffect(() => {
         if (token) {
             fetchData();
-            const interval = setInterval(fetchData, 4000);
+            const interval = setInterval(fetchData, 5000);
             return () => clearInterval(interval);
+        } else {
+            setLoading(false);
         }
     }, [token]);
 
-    if (!token) return <Login onLogin={setToken} />;
-
-    if (loading) return (
-        <div className="loader-overlay">
-            <NeuralLogo size={120} />
-            <div className="loader-text">
-                <motion.h2
-                    initial={{ opacity: 0, letterSpacing: "1.2em" }}
-                    animate={{ opacity: 1, letterSpacing: "0.6em" }}
-                    transition={{ duration: 2, ease: [0.23, 1, 0.32, 1] }}
-                >
-                    KYNTO
-                </motion.h2>
-            </div>
-        </div>
-    );
-
-    if (!data) return (
-        <div className="error-screen app-container">
-            <header className="main-header">
-                <div className="brand-stack">
-                    <NeuralLogo size={50} />
-                    <div>
-                        <h1>Sal's Server Dashboard</h1>
-                        <p>SYSTEM OFFLINE</p>
-                    </div>
-                </div>
-                <div className="live-status">
-                    <span className="err-badge">OFFLINE</span>
-                </div>
-            </header>
-            <div className="error-content">
-                <motion.div
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className="glass-card"
-                    style={{ textAlign: 'center', margin: '40px auto', maxWidth: '500px' }}
-                >
-                    <Activity size={48} color="var(--accent)" style={{ marginBottom: '20px' }} />
-                    <h2>Connection Lost</h2>
-                    <p style={{ color: 'var(--text-muted)' }}>
-                        Unable to connect to the backend at:<br />
-                        <code style={{ background: 'rgba(0,0,0,0.3)', padding: '4px 8px', borderRadius: '4px', display: 'inline-block', marginTop: '8px' }}>
-                            {API_BASE_URL}
-                        </code>
-                    </p>
-                    <button className="action-btn" onClick={fetchData} style={{ margin: '20px auto 0' }}>
-                        <RefreshCw size={14} style={{ marginRight: '8px' }} /> Retry Connection
-                    </button>
-                </motion.div>
-            </div>
-        </div>
-    );
-
-    const memUsedGB = (data.system.memory.used / 1024 / 1024 / 1024).toFixed(1);
-    const memTotalGB = (data.system.memory.total / 1024 / 1024 / 1024).toFixed(0);
-    const memPercent = (data.system.memory.used / data.system.memory.total) * 100;
+    if (loading && !data) return <LoaderOverlay />;
+    if (!token) return <Login onLoginSuccess={(t) => { setToken(t); fetchData(); }} />;
+    if (!data) return <LoaderOverlay />;
 
     return (
         <div className="app-container">
             <header className="main-header">
                 <div className="brand-stack">
-                    <NeuralLogo size={50} />
+                    <NeuralLogo />
                     <div>
-                        <h1>Sal's Server Dashboard</h1>
-                        <p>{data.system.os.distro}</p>
+                        <h1>TactiCore Dashboard</h1>
+                        <p>Infrastructure AI System</p>
                     </div>
                 </div>
                 <div className="live-status">
-                    {error ? <span className="err-badge">{error}</span> : <div className="live-badge"><div className="dot"></div> System Online</div>}
+                    <div className="live-badge">
+                        <div className="pulse-dot" />
+                        SYSTEM_OPERATIONAL
+                    </div>
                 </div>
             </header>
 
             <main className="dashboard-grid">
                 <StatCard
-                    icon={Cpu}
-                    title="CPU"
-                    value={`${Math.round(data.system.cpu.load)}%`}
-                    label="Processor Utilization"
-                    progress={data.system.cpu.load}
-                    color="var(--text)"
+                    icon={Activity}
+                    title="System Health"
+                    value={`${data.system.cpu.currentLoad.toFixed(1)}%`}
+                    label="CPU Load"
+                    progress={data.system.cpu.currentLoad}
+                    color="var(--accent)"
+                    delay={0}
+                />
+                <StatCard
+                    icon={Database}
+                    title="Memory Pool"
+                    value={`${(data.system.mem.used / (1024 ** 3)).toFixed(1)}GB`}
+                    label={`${(data.system.mem.free / (1024 ** 3)).toFixed(1)}GB available`}
+                    progress={(data.system.mem.used / data.system.mem.total) * 100}
+                    color="var(--success)"
                     delay={0.1}
                 />
                 <StatCard
                     icon={Server}
-                    title="Memory"
-                    value={`${memUsedGB}GB`}
-                    label={`of ${memTotalGB}GB Total Allocation`}
-                    progress={memPercent}
-                    color="var(--accent)"
+                    title="Container Mesh"
+                    value={data.system.docker.running}
+                    label={`${data.system.docker.total} total instances`}
+                    progress={(data.system.docker.running / data.system.docker.total) * 100}
+                    color="var(--warning)"
                     delay={0.2}
                 />
                 <StatCard
-                    icon={Database}
-                    title="Storage"
-                    value={`${Math.round(data.system.disk[0]?.use)}%`}
-                    label="Primary Partition Load"
+                    icon={HardDrive}
+                    title="Storage Node"
+                    value={`${data.system.disk[0]?.use}%`}
+                    label="NVMe Disk Array"
                     progress={data.system.disk[0]?.use}
                     color="var(--text)"
                     delay={0.3}
@@ -339,8 +288,20 @@ const App = () => {
                 <div className="footer-right"><TrendingUp size={14} /> Secure Tunnel Active</div>
             </footer>
 
-            <KyntoChat />
+            <KyntoChat onExpand={onExpandChat} />
         </div>
+    );
+};
+
+const App = () => {
+    const [currentView, setCurrentView] = useState('dashboard');
+
+    if (currentView === 'chat') {
+        return <ChatPage onBack={() => setCurrentView('dashboard')} />;
+    }
+
+    return (
+        <AppContent onExpandChat={() => setCurrentView('chat')} />
     );
 };
 
