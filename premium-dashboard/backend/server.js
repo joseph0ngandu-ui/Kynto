@@ -2,15 +2,46 @@ const express = require('express');
 const cors = require('cors');
 const si = require('systeminformation');
 const Docker = require('dockerode');
+const jwt = require('jsonwebtoken');
+
 const docker = new Docker({ socketPath: '/var/run/docker.sock' });
 
 const app = express();
+const DASHBOARD_PASSWORD = process.env.DASHBOARD_PASSWORD || 'admin';
+const JWT_SECRET = process.env.JWT_SECRET || 'kynto-kernel-secure-9912';
+
 app.use(cors({
-    origin: '*', // Allow all for now but explicitly mention we're open
+    origin: '*',
     methods: ['GET', 'POST', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization']
 }));
-app.use(express.json()); // Required for post processing
+app.use(express.json());
+
+// Auth Middleware (Industry Standard HMAC-SHA256)
+const verifyToken = (req, res, next) => {
+    const authHeader = req.headers.authorization;
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (!token) return res.status(401).json({ error: 'UNAUTHORIZED_ACCESS_DENIED' });
+
+    try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        req.user = decoded;
+        next();
+    } catch (err) {
+        res.status(401).json({ error: 'SESSION_EXPIRED_OR_INVALID' });
+    }
+};
+
+// Secure Login Entity
+app.post('/api/auth/login', async (req, res) => {
+    const { password } = req.body;
+    if (password === DASHBOARD_PASSWORD) {
+        const token = jwt.sign({ sub: 'admin', iat: Math.floor(Date.now() / 1000) }, JWT_SECRET, { expiresIn: '24h' });
+        return res.json({ token });
+    }
+    res.status(401).json({ error: 'CREDENTIAL_INVALID' });
+});
 
 // Mapping for Natural English Names
 const NAME_MAP = {
@@ -59,7 +90,7 @@ const formatUptime = (startedAt) => {
     return 'Just now';
 };
 
-app.get('/api/stats', async (req, res) => {
+app.get('/api/stats', verifyToken, async (req, res) => {
     try {
         const [cpu, mem, os, disk, load, dockerInfo] = await Promise.all([
             si.cpu(),
