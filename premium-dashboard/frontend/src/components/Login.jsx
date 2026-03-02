@@ -30,13 +30,17 @@ const Login = ({ onLogin }) => {
     useEffect(() => {
         const checkStatus = async () => {
             try {
-                const res = await fetch(`${apiBase}/api/auth/status`);
+                const res = await fetch(`${apiBase}/api/auth/status`, { signal: AbortSignal.timeout(5000) });
                 const data = await res.json();
                 setInitialized(data.initialized);
-            } catch (err) { }
+            } catch (err) {
+                console.warn('Vault status check failed (Backend possibly offline)');
+                // Default to initialized: true to allow login attempts if site is cached
+                setInitialized(true);
+            }
         };
         checkStatus();
-    }, []);
+    }, [apiBase]);
 
     const resetFormStatus = () => {
         setError(null);

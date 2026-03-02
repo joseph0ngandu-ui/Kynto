@@ -217,6 +217,7 @@ const AppContent = () => {
     const [data, setData] = useState(null);
     const [logs, setLogs] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
     const [selectedContainer, setSelectedContainer] = useState(null);
 
     const fetchData = async () => {
@@ -242,8 +243,11 @@ const AppContent = () => {
 
             setData(statsJson);
             setLogs(logsJson);
+            setError(null);
             setLoading(false);
         } catch (err) {
+            console.error('Fetch error:', err);
+            setError(`CONNECTION_FAILURE: Unable to reach kernel at ${API_BASE_URL}`);
             setLoading(false);
         }
     };
@@ -266,7 +270,29 @@ const AppContent = () => {
         return () => clearInterval(interval);
     }, []);
 
-    if (loading && !data) return <LoaderOverlay />;
+    if (loading && !data && !error) return <LoaderOverlay />;
+
+    if (error && !data) {
+        return (
+            <div className="loader-overlay" style={{ background: '#000', padding: '40px', textAlign: 'center' }}>
+                <Shield size={48} color="#ff3333" style={{ marginBottom: '24px', opacity: 0.5 }} />
+                <h2 style={{ color: '#fff', fontSize: '18px', letterSpacing: '0.1em', marginBottom: '12px' }}>KERNEL_OFFLINE</h2>
+                <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '13px', maxWidth: '300px', lineHeight: 1.6 }}>
+                    The dashboard cannot establish a secure link to the intelligence nexus.
+                </p>
+                <div style={{ marginTop: '24px', padding: '12px', background: 'rgba(255,51,51,0.05)', borderRadius: '8px', border: '1px solid rgba(255,51,51,0.1)' }}>
+                    <code style={{ color: '#ff3333', fontSize: '11px' }}>{error}</code>
+                </div>
+                <button
+                    onClick={() => { setError(null); setLoading(true); fetchData(); }}
+                    style={{ marginTop: '32px', background: 'none', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', padding: '10px 24px', borderRadius: '100px', cursor: 'pointer', fontSize: '12px' }}
+                >
+                    RETRY_CONNECTION
+                </button>
+            </div>
+        );
+    }
+
     if (!data) return <LoaderOverlay />;
 
     return (
