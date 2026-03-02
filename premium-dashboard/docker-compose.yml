@@ -1,4 +1,3 @@
-version: '3.8'
 services:
   dashboard-backend:
     build:
@@ -6,10 +5,12 @@ services:
       dockerfile: Dockerfile
     volumes:
       - /run/user/1000/docker.sock:/var/run/docker.sock
+      - auth_data:/app/data
     ports:
       - "3001:3001"
     networks:
       - dashboard_net
+      - kynto_internal
     restart: always
 
   dashboard-frontend:
@@ -24,6 +25,12 @@ services:
       - dashboard-backend
     restart: always
 
+volumes:
+  auth_data:
+
+
 networks:
   dashboard_net:
     driver: bridge
+  kynto_internal:
+    external: true

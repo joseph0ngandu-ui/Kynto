@@ -357,4 +357,54 @@ app.post('/api/containers/:id/action', verifyToken, async (req, res) => {
     }
 });
 
+// Kynto AI Chat Proxy
+const KYNTO_CORE_URL = process.env.KYNTO_CORE_URL || 'http://kynto-kynto_core-1:5000/execute';
+
+app.post('/api/chat', verifyToken, async (req, res) => {
+    const { message, history } = req.body;
+    if (!message) return res.status(400).json({ error: 'MISSING_MESSAGE' });
+
+    try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 120000); // 2 min timeout
+
+        const response = await fetch(KYNTO_CORE_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                system: 'You are Kynto. Plan safely inside <thinking> tags.',
+                task: message,
+                history: history || [],
+                audio_file: null
+            }),
+            signal: controller.signal
+        });
+
+        clearTimeout(timeout);
+        const data = await response.json();
+
+        // Extract response text (same as gateway_service logic)
+        let responseText = '';
+        if (data.files_changed && data.files_changed.length > 0) {
+            responseText = data.files_changed[0];
+        } else if (data.error_log) {
+            responseText = `Error: ${data.error_log}`;
+        }
+
+        // Strip internal <thinking> tags
+        responseText = responseText.replace(/<thinking>[\s\S]*?<\/thinking>/g, '').trim();
+
+        // Convert Slack mrkdwn back to standard markdown for web display
+        // (The core formats for Slack, we need standard markdown)
+
+        res.json({ response: responseText, status: data.status || 'success' });
+    } catch (error) {
+        console.error('[CHAT_ERROR]', error.message);
+        if (error.name === 'AbortError') {
+            return res.status(504).json({ error: 'KYNTO_CORE_TIMEOUT', response: 'The AI agent took too long to respond. Please try again.' });
+        }
+        res.status(502).json({ error: 'KYNTO_CORE_UNREACHABLE', response: 'Unable to reach the AI engine. Ensure Kynto Core is running.' });
+    }
+});
+
 app.listen(3001, '0.0.0.0', () => console.log('Backend on 3001'));

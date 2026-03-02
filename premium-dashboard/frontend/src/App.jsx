@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import Login from './components/Login';
 import NeuralLogo from './components/NeuralLogo';
+import KyntoChat from './components/KyntoChat';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://homeserver.taildbc5d3.ts.net';
 
@@ -337,6 +338,8 @@ const App = () => {
                 <div className="footer-left">Kynto Vault v7.2</div>
                 <div className="footer-right"><TrendingUp size={14} /> Secure Tunnel Active</div>
             </footer>
+
+            <KyntoChat />
         </div>
     );
 };
