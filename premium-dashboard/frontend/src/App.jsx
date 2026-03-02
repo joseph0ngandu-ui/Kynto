@@ -212,8 +212,7 @@ const VoiceActivityFeed = ({ logs }) => (
     </div>
 );
 
-const AppContent = () => {
-    const [token, setToken] = useState(localStorage.getItem('dashboard_token'));
+const AppContent = ({ token, onLogout }) => {
     const [data, setData] = useState(null);
     const [logs, setLogs] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -221,18 +220,16 @@ const AppContent = () => {
     const [selectedContainer, setSelectedContainer] = useState(null);
 
     const fetchData = async () => {
-        const currentToken = localStorage.getItem('dashboard_token');
-        if (!currentToken) return;
+        if (!token) return;
 
         try {
             const [statsRes, logsRes] = await Promise.all([
-                fetch(`${API_BASE_URL}/api/stats`, { headers: { 'Authorization': `Bearer ${currentToken}` } }),
-                fetch(`${API_BASE_URL}/api/audit-logs`, { headers: { 'Authorization': `Bearer ${currentToken}` } })
+                fetch(`${API_BASE_URL}/api/stats`, { headers: { 'Authorization': `Bearer ${token}` } }),
+                fetch(`${API_BASE_URL}/api/audit-logs`, { headers: { 'Authorization': `Bearer ${token}` } })
             ]);
 
             if (statsRes.status === 401) {
-                localStorage.removeItem('dashboard_token');
-                window.location.reload();
+                onLogout();
                 return;
             }
 
@@ -254,9 +251,13 @@ const AppContent = () => {
 
     const handleAction = async (id, action) => {
         try {
-            await fetch(`${API_BASE_URL}/api/containers/${id}/${action}`, {
+            await fetch(`${API_BASE_URL}/api/containers/${id}/action`, {
                 method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}` }
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ action })
             });
             fetchData();
         } catch (err) {
@@ -268,7 +269,7 @@ const AppContent = () => {
         fetchData();
         const interval = setInterval(fetchData, 5000);
         return () => clearInterval(interval);
-    }, []);
+    }, [token]);
 
     if (loading && !data && !error) return <LoaderOverlay />;
 
@@ -409,7 +410,7 @@ const SettingsView = () => (
 );
 
 const App = () => {
-    const [token, setToken] = useState(localStorage.getItem('dashboard_token'));
+    const [token, setToken] = useState(() => localStorage.getItem('dashboard_token') || sessionStorage.getItem('dashboard_token'));
     const [currentView, setCurrentView] = useState(() => localStorage.getItem('kynto_view') || 'dashboard');
     const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('kynto_sidebar_collapsed') === 'true');
     const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -424,6 +425,7 @@ const App = () => {
 
     const handleLogout = () => {
         localStorage.removeItem('dashboard_token');
+        sessionStorage.removeItem('dashboard_token');
         setToken(null);
     };
 
@@ -459,8 +461,8 @@ const App = () => {
                     </div>
                 </header>
 
-                <div className="view-container">
-                    {currentView === 'dashboard' && <AppContent />}
+                <div className="main-content">
+                    {currentView === 'dashboard' && <AppContent token={token} onLogout={handleLogout} />}
                     {currentView === 'chat' && <ChatPage onBack={() => setCurrentView('dashboard')} />}
                     {currentView === 'settings' && <SettingsView />}
                 </div>
