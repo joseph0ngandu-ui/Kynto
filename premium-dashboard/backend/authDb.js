@@ -2,7 +2,13 @@ const fs = require('fs');
 const path = require('path');
 const bcrypt = require('bcryptjs');
 
-const DB_PATH = path.join(__dirname, 'auth.json');
+const DATA_DIR = process.env.AUTH_DATA_DIR || '/app/data';
+const DB_PATH = path.join(DATA_DIR, 'auth.json');
+
+// Ensure data directory exists at startup
+if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+}
 
 const readDb = () => {
     if (!fs.existsSync(DB_PATH)) {
