@@ -374,12 +374,13 @@ setInterval(() => {
     }
 }, 60000);
 
-// POST /api/chat - Accept task, return immediately with ack
+// POST /api/chat - Race pattern: fast responses are synchronous, slow ones go async
 app.post('/api/chat', verifyToken, async (req, res) => {
     const { message, history } = req.body;
     if (!message) return res.status(400).json({ error: 'MISSING_MESSAGE' });
 
     const taskId = crypto.randomBytes(8).toString('hex');
+    let responded = false;
 
     // Store task as pending
     chatTasks.set(taskId, {
@@ -390,33 +391,11 @@ app.post('/api/chat', verifyToken, async (req, res) => {
         completedAt: null
     });
 
-    // Step 1: Get a real AI-generated acknowledgment (fast, no tool calls)
-    let ackText = 'On it.';
-    try {
-        const ackRes = await fetch(KYNTO_CORE_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                system: 'You are Kynto. The user just sent you a task. Respond with ONLY a brief, natural 1-sentence acknowledgment that you understand and are about to start working on it. Do NOT use any tools. Do NOT actually do the task. Just acknowledge it naturally.',
-                task: `Acknowledge this request (do NOT execute it): "${message}"`,
-                history: [],
-                audio_file: null
-            }),
-            signal: AbortSignal.timeout(15000)
-        });
-        const ackData = await ackRes.json();
-        if (ackData.files_changed && ackData.files_changed[0]) {
-            ackText = ackData.files_changed[0].replace(/<thinking>[\s\S]*?<\/thinking>/g, '').trim();
-        }
-    } catch (e) {
-        console.log('[CHAT_ACK] Fast ack failed, using fallback:', e.message);
-    }
-
-    // Step 2: Fire-and-forget the real task in background
-    (async () => {
+    // Start the real task
+    const taskPromise = (async () => {
         try {
             const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 600000);
+            const hardTimeout = setTimeout(() => controller.abort(), 600000); // 10 min hard limit
 
             const response = await fetch(KYNTO_CORE_URL, {
                 method: 'POST',
@@ -430,7 +409,7 @@ app.post('/api/chat', verifyToken, async (req, res) => {
                 signal: controller.signal
             });
 
-            clearTimeout(timeout);
+            clearTimeout(hardTimeout);
             const data = await response.json();
 
             let responseText = '';
@@ -441,28 +420,40 @@ app.post('/api/chat', verifyToken, async (req, res) => {
             }
 
             responseText = responseText.replace(/<thinking>[\s\S]*?<\/thinking>/g, '').trim();
-
-            const task = chatTasks.get(taskId);
-            if (task) {
-                task.status = 'done';
-                task.result = responseText;
-                task.completedAt = Date.now();
-            }
+            return responseText || 'Task completed with no output.';
         } catch (error) {
             console.error('[CHAT_ERROR]', error.message);
-            const task = chatTasks.get(taskId);
-            if (task) {
-                task.status = 'done';
-                task.result = error.name === 'AbortError'
-                    ? 'Task timed out after 10 minutes. Try breaking it into smaller requests.'
-                    : 'Unable to reach the AI engine. Ensure Kynto Core is running.';
-                task.completedAt = Date.now();
-            }
+            return error.name === 'AbortError'
+                ? 'Task timed out after 10 minutes. Try breaking it into smaller requests.'
+                : 'Unable to reach the AI engine. Ensure Kynto Core is running.';
         }
     })();
 
-    // Return the AI-generated ack + taskId for polling
-    res.json({ taskId, status: 'processing', ack: ackText });
+    // Race: wait 10 seconds for the task to complete
+    const raceTimeout = new Promise(resolve => setTimeout(() => resolve('__TIMEOUT__'), 10000));
+
+    const result = await Promise.race([taskPromise, raceTimeout]);
+
+    if (result !== '__TIMEOUT__') {
+        // Fast path: task completed within 10s, return directly
+        responded = true;
+        chatTasks.delete(taskId); // No need to store it
+        return res.json({ response: result, status: 'done' });
+    }
+
+    // Slow path: task is still running, return taskId for polling
+    responded = true;
+    res.json({ taskId, status: 'processing' });
+
+    // Continue processing in background, store result when done
+    taskPromise.then(finalResult => {
+        const task = chatTasks.get(taskId);
+        if (task) {
+            task.status = 'done';
+            task.result = finalResult;
+            task.completedAt = Date.now();
+        }
+    });
 });
 
 // GET /api/chat/status/:taskId - Poll for result

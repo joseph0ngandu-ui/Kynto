@@ -85,17 +85,17 @@ const KyntoChat = () => {
 
             const data = await res.json();
 
-            if (data.taskId) {
-                // AI-generated acknowledgment
+            if (data.status === 'done' && data.response) {
+                // Fast path: agent responded within 10s
+                setMessages(prev => [...prev, { role: 'assistant', content: data.response }]);
+            } else if (data.taskId) {
+                // Slow path: agent is still working, poll for result
+                pollForResult(data.taskId);
+            } else {
                 setMessages(prev => [...prev, {
                     role: 'assistant',
-                    content: data.ack || 'On it.',
-                    isAck: true
+                    content: data.error || 'No response from agent.'
                 }]);
-                pollForResult(data.taskId);
-            } else if (data.response) {
-                // Synchronous response (fast tasks)
-                setMessages(prev => [...prev, { role: 'assistant', content: data.response }]);
             }
         } catch (err) {
             setMessages(prev => [...prev, {
