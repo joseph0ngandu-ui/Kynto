@@ -13,8 +13,17 @@ const JWT_SECRET = process.env.JWT_SECRET || 'kynto-kernel-secure-9912';
 app.use(cors({
     origin: '*',
     methods: ['GET', 'POST', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    exposedHeaders: ['Access-Control-Allow-Private-Network']
 }));
+
+// PNA (Private Network Access) Support
+app.use((req, res, next) => {
+    if (req.method === 'OPTIONS') {
+        res.setHeader('Access-Control-Allow-Private-Network', 'true');
+    }
+    next();
+});
 app.use(express.json());
 
 // Auth Middleware (Industry Standard HMAC-SHA256)

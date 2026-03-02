@@ -190,6 +190,10 @@ const NeuralLogo = ({ size = 64 }) => {
 
 const App = () => {
     const [token, setToken] = useState(localStorage.getItem('dashboard_token'));
+    const [data, setData] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [selectedContainer, setSelectedContainer] = useState(null);
 
     const fetchData = async () => {
         if (!token) return;
