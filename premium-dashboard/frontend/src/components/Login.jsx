@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Shield, Lock, ArrowRight } from 'lucide-react';
+import { Shield, Lock, ArrowRight, Eye, EyeOff } from 'lucide-react';
+import NeuralLogo from './NeuralLogo';
 
 const Login = ({ onLogin }) => {
     const [password, setPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
+    const [rememberMe, setRememberMe] = useState(localStorage.getItem('dashboard_remember') === 'true');
     const [error, setError] = useState(false);
     const [loading, setLoading] = useState(false);
 
@@ -22,7 +25,13 @@ const Login = ({ onLogin }) => {
 
             if (res.ok) {
                 const { token } = await res.json();
-                localStorage.setItem('dashboard_token', token);
+                if (rememberMe) {
+                    localStorage.setItem('dashboard_token', token);
+                    localStorage.setItem('dashboard_remember', 'true');
+                } else {
+                    sessionStorage.setItem('dashboard_token', token);
+                    localStorage.removeItem('dashboard_remember');
+                }
                 onLogin(token);
             } else {
                 setError(true);
@@ -38,22 +47,23 @@ const Login = ({ onLogin }) => {
         <div className="loader-overlay" style={{ background: 'radial-gradient(circle at center, #111 0%, #000 100%)' }}>
             <motion.div
                 className="glass-card"
-                initial={{ opacity: 0, scale: 0.9 }}
+                initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
-                style={{ width: '100%', maxWidth: '400px', padding: '40px', textAlign: 'center' }}
+                transition={{ duration: 0.4 }}
+                style={{ width: '90%', maxWidth: '400px', padding: '40px', textAlign: 'center' }}
             >
-                <div className="icon-box" style={{ background: 'var(--accent)22', margin: '0 auto 20px', width: '64px', height: '64px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '20px' }}>
-                    <Shield size={32} color="var(--accent)" />
+                <div style={{ margin: '0 auto 20px', display: 'flex', justifyContent: 'center' }}>
+                    <NeuralLogo size={80} loop={true} />
                 </div>
 
                 <h2 style={{ marginBottom: '8px', letterSpacing: '0.1em' }}>VAULT ACCESS</h2>
                 <p style={{ color: 'var(--text-muted)', marginBottom: '30px', fontSize: '14px' }}>Secure kernel authentication required</p>
 
                 <form onSubmit={handleSubmit}>
-                    <div style={{ position: 'relative', marginBottom: '20px' }}>
+                    <div style={{ position: 'relative', marginBottom: '15px' }}>
                         <Lock size={16} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                         <input
-                            type="password"
+                            type={showPassword ? "text" : "password"}
                             placeholder="Enter Master Password"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
@@ -61,7 +71,7 @@ const Login = ({ onLogin }) => {
                                 width: '100%',
                                 background: 'rgba(255,255,255,0.05)',
                                 border: error ? '1px solid var(--danger)' : '1px solid rgba(255,255,255,0.1)',
-                                padding: '14px 14px 14px 45px',
+                                padding: '14px 45px 14px 45px',
                                 borderRadius: '12px',
                                 color: 'white',
                                 outline: 'none',
@@ -70,6 +80,42 @@ const Login = ({ onLogin }) => {
                             }}
                             autoFocus
                         />
+                        <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            style={{
+                                position: 'absolute',
+                                right: '16px',
+                                top: '50%',
+                                transform: 'translateY(-50%)',
+                                background: 'none',
+                                border: 'none',
+                                color: 'var(--text-muted)',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                padding: 0
+                            }}
+                        >
+                            {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                        </button>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '25px', cursor: 'pointer' }} onClick={() => setRememberMe(!rememberMe)}>
+                        <div style={{
+                            width: '18px',
+                            height: '18px',
+                            borderRadius: '4px',
+                            border: '1px solid rgba(255,255,255,0.2)',
+                            background: rememberMe ? 'var(--accent)' : 'transparent',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transition: 'all 0.2s'
+                        }}>
+                            {rememberMe && <ArrowRight size={12} color="white" style={{ transform: 'rotate(-45deg)' }} />}
+                        </div>
+                        <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Remember access for 24h</span>
                     </div>
 
                     {error && (
