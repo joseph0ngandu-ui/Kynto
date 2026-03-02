@@ -9,8 +9,8 @@ const NeuralLogo = ({ size = 64, loop = false }) => {
             opacity: 1,
             transition: {
                 pathLength: {
-                    delay: i * 0.1,
-                    duration: 1.0,
+                    delay: i * 0.2,
+                    duration: 2.5,
                     ease: "easeInOut",
                     repeat: loop ? Infinity : 0,
                     repeatType: "reverse"

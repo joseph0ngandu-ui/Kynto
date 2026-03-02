@@ -49,10 +49,17 @@ const verifyToken = (req, res, next) => {
 // Secure Login Entity
 app.post('/api/auth/login', async (req, res) => {
     const { password } = req.body;
-    if (password === DASHBOARD_PASSWORD) {
+
+    // DEBUG: Diagnose Chrome vs Safari discrepancy
+    console.log(`[AUTH_DEBUG] Attempt from ${req.ip} | UA: ${req.headers['user-agent']?.substring(0, 50)}...`);
+    console.log(`[AUTH_DEBUG] Received length: ${password?.length} | Expected length: ${DASHBOARD_PASSWORD?.length}`);
+
+    if (password && password.trim() === DASHBOARD_PASSWORD.trim()) {
         const token = jwt.sign({ sub: 'admin', iat: Math.floor(Date.now() / 1000) }, JWT_SECRET, { expiresIn: '24h' });
         return res.json({ token });
     }
+
+    console.warn(`[AUTH_DEBUG] Login failed for password attempt (first 2 chars): ${password?.substring(0, 2)}...`);
     res.status(401).json({ error: 'CREDENTIAL_INVALID' });
 });
 
