@@ -19,8 +19,14 @@ const readDb = () => {
 };
 
 const writeDb = (data) => {
-    ensureDir();
-    fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
+    try {
+        ensureDir();
+        fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
+        console.log(`[DB] Successfully wrote to ${DB_FILE}`);
+    } catch (err) {
+        console.error(`[DB_ERROR] Failed to write to ${DB_FILE}:`, err.message);
+        throw err;
+    }
 };
 
 module.exports = {

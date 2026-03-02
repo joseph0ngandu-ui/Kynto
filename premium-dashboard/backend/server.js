@@ -488,8 +488,13 @@ app.get('/api/conversations/:id', verifyToken, (req, res) => {
 });
 
 app.delete('/api/conversations/:id', verifyToken, (req, res) => {
+    console.log(`[DELETE] Request for conversation: ${req.params.id}`);
     const ok = chatDb.deleteConversation(req.params.id);
-    if (!ok) return res.status(404).json({ error: 'NOT_FOUND' });
+    if (!ok) {
+        console.error(`[DELETE] Failed to delete conversation: ${req.params.id} (NOT_FOUND)`);
+        return res.status(404).json({ error: 'NOT_FOUND' });
+    }
+    console.log(`[DELETE] Successfully deleted: ${req.params.id}`);
     res.json({ success: true });
 });
 
