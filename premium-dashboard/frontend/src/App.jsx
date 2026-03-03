@@ -141,19 +141,31 @@ const LoaderOverlay = () => (
 
 const Sidebar = ({ currentView, onViewChange, onLogout, collapsed, setCollapsed }) => (
     <div className={`side-nav ${collapsed ? 'collapsed' : ''}`}>
-        <div className="nav-brand" style={{ justifyContent: collapsed ? 'center' : 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div className="nav-brand">
+            <div className="brand-content">
                 <NeuralLogo size={32} />
                 {!collapsed && <span className="brand-text">KYNTO</span>}
             </div>
+            {!collapsed && (
+                <button
+                    className="collapse-btn"
+                    onClick={() => setCollapsed(true)}
+                    title="Collapse Sidebar"
+                >
+                    <ChevronRight size={16} style={{ transform: 'rotate(180deg)' }} />
+                </button>
+            )}
+        </div>
+
+        {collapsed && (
             <button
-                className="collapse-btn"
-                onClick={() => setCollapsed(!collapsed)}
-                title="Toggle Sidebar"
+                className="expand-btn-standalone"
+                onClick={() => setCollapsed(false)}
+                title="Expand Sidebar"
             >
                 <ChevronRight size={16} />
             </button>
-        </div>
+        )}
 
         <nav className="nav-links">
             <button
@@ -232,7 +244,7 @@ const LogsView = ({ token, onLogout }) => {
 
     return (
         <div className="logs-view-page">
-            <header className="settings-header">
+            <header className="page-header">
                 <h2>Audit Logs</h2>
                 <p>Real-time system telemetry and verification traces.</p>
             </header>
@@ -344,6 +356,11 @@ const AppContent = ({ token, onLogout }) => {
 
     return (
         <div className="dashboard-content">
+            <header className="page-header">
+                <h2>Infrastructure</h2>
+                <p>System health, memory pools, and active intelligence containers.</p>
+            </header>
+
             <main className="dashboard-grid">
                 <StatCard
                     icon={Activity}
@@ -418,7 +435,7 @@ const AppContent = ({ token, onLogout }) => {
 
 const SettingsView = () => (
     <div className="settings-view">
-        <header className="settings-header">
+        <header className="page-header">
             <h2>Preferences</h2>
             <p>Configure your intelligence nexus parameters</p>
         </header>
@@ -668,6 +685,27 @@ const App = () => {
                     background: #222;
                     border-color: rgba(255,255,255,0.2);
                 }
+                
+                .expand-btn-standalone {
+                    width: 48px;
+                    height: 48px;
+                    background: #111;
+                    border: 1px solid rgba(255,255,255,0.1);
+                    border-radius: 12px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    cursor: pointer;
+                    color: rgba(255,255,255,0.6);
+                    transition: all 0.2s;
+                    margin: 0 auto 32px auto;
+                }
+
+                .expand-btn-standalone:hover {
+                    color: #fff;
+                    background: #222;
+                    border-color: rgba(255,255,255,0.2);
+                }
 
                 .side-nav.collapsed .collapse-btn {
                     transform: rotate(180deg);
@@ -787,10 +825,12 @@ const App = () => {
                 .log-entry .message { color: rgba(255,255,255,0.8); }
                 .log-entry.success .source { color: #00ff80; }
                 .log-entry.muted .message { color: rgba(255,255,255,0.3); }
+                
                 .settings-view { padding: 32px; max-width: 800px; margin: 0 auto; width: 100%; }
-                .settings-header { margin-bottom: 32px; }
-                .settings-header h2 { font-size: 24px; font-weight: 800; margin-bottom: 8px; }
-                .settings-header p { color: rgba(255,255,255,0.4); font-size: 14px; }
+                
+                .page-header { margin-bottom: 32px; }
+                .page-header h2 { font-size: 24px; font-weight: 800; margin-bottom: 8px; }
+                .page-header p { color: rgba(255,255,255,0.4); font-size: 14px; }
 
                 .settings-group { margin-bottom: 40px; }
                 .settings-group h3 { font-size: 13px; font-weight: 700; color: rgba(255,255,255,0.3); text-transform: uppercase; margin-bottom: 20px; letter-spacing: 0.1em; }
