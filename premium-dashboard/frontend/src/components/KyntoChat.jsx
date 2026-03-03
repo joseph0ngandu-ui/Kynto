@@ -41,7 +41,8 @@ const KyntoChat = ({ onExpand }) => {
         pollRef.current = setInterval(async () => {
             try {
                 const res = await fetch(`${API_BASE_URL}/api/chat/status/${taskId}`, {
-                    headers: { 'Authorization': `Bearer ${getToken()}` }
+                    headers: { 'Authorization': `Bearer ${getToken()}` },
+                    signal: AbortSignal.timeout(5000)
                 });
                 const data = await res.json();
 
@@ -52,10 +53,15 @@ const KyntoChat = ({ onExpand }) => {
                     setMessages(prev => [...prev, { role: 'assistant', content: data.response || 'Task complete.' }]);
                 }
             } catch (err) {
-                clearInterval(pollRef.current);
-                pollRef.current = null;
-                setPolling(false);
-                setMessages(prev => [...prev, { role: 'assistant', content: 'Lost connection while waiting for agent response.' }]);
+                if (err.name !== 'TimeoutError' && err.name !== 'AbortError') {
+                    // Only kill polling on hard errors, let timeouts retry
+                    console.error('Polling error:', err);
+                    clearInterval(pollRef.current);
+                    pollRef.current = null;
+                    setPolling(false);
+                    setMessages(prev => [...prev, { role: 'assistant', content: 'Lost connection while waiting for agent response.' }]);
+                }
+                // Timeout/Abort errors will simply be ignored and the next interval will try again
             }
         }, 3000); // Poll every 3 seconds
     };
@@ -82,7 +88,8 @@ const KyntoChat = ({ onExpand }) => {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${getToken()}`
                 },
-                body: JSON.stringify({ message: trimmed, history })
+                body: JSON.stringify({ message: trimmed, history }),
+                signal: AbortSignal.timeout(8000)
             });
 
             const data = await res.json();
@@ -100,9 +107,12 @@ const KyntoChat = ({ onExpand }) => {
                 }]);
             }
         } catch (err) {
+            console.error('Chat error:', err);
             setMessages(prev => [...prev, {
                 role: 'assistant',
-                content: 'Connection to Kynto Core failed. Is the agent running?'
+                content: (err.name === 'TimeoutError' || err.name === 'AbortError')
+                    ? 'Connection to Kynto timed out. Please check your network and try again.'
+                    : 'Connection to Kynto Core failed. Is the agent running?'
             }]);
         }
     };

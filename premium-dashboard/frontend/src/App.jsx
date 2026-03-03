@@ -907,8 +907,20 @@ const App = () => {
                     .side-nav { display: none; }
                     .mobile-menu-btn { display: block; }
                     .dashboard-row { grid-template-columns: 1fr; }
+                    .dashboard-row.full-width { grid-template-columns: 1fr; }
                     .dashboard-sidebar { display: none; }
                     .dashboard-content { padding: 24px 16px; }
+                    .logs-view-page { padding: 24px 16px; }
+                    .settings-view { padding: 24px 16px; }
+                    
+                    .main-header {
+                        padding: 0 16px;
+                        height: 56px;
+                    }
+                    
+                    .header-left { gap: 12px; }
+                    
+                    .view-title { font-size: 13px; }
                 }
 
                 .live-badge {
