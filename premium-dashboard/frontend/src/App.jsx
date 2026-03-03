@@ -141,9 +141,18 @@ const LoaderOverlay = () => (
 
 const Sidebar = ({ currentView, onViewChange, onLogout, collapsed, setCollapsed }) => (
     <div className={`side-nav ${collapsed ? 'collapsed' : ''}`}>
-        <div className="nav-brand">
-            <NeuralLogo size={32} />
-            {!collapsed && <span className="brand-text">KYNTO</span>}
+        <div className="nav-brand" style={{ justifyContent: collapsed ? 'center' : 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <NeuralLogo size={32} />
+                {!collapsed && <span className="brand-text">KYNTO</span>}
+            </div>
+            <button
+                className="collapse-btn"
+                onClick={() => setCollapsed(!collapsed)}
+                title="Toggle Sidebar"
+            >
+                <ChevronRight size={16} />
+            </button>
         </div>
 
         <nav className="nav-links">
@@ -163,6 +172,14 @@ const Sidebar = ({ currentView, onViewChange, onLogout, collapsed, setCollapsed 
                 <MessageSquare size={20} />
                 {!collapsed && <span>Kynto Chat</span>}
             </button>
+            <button
+                className={`nav-link ${currentView === 'logs' ? 'active' : ''}`}
+                onClick={() => onViewChange('logs')}
+                title="Audit Logs"
+            >
+                <Activity size={20} />
+                {!collapsed && <span>Audit Logs</span>}
+            </button>
         </nav>
 
         <div className="nav-spacer" />
@@ -180,18 +197,52 @@ const Sidebar = ({ currentView, onViewChange, onLogout, collapsed, setCollapsed 
                 <LogOut size={20} />
                 {!collapsed && <span>Sign Out</span>}
             </button>
-            <button
-                className="collapse-btn"
-                onClick={() => setCollapsed(!collapsed)}
-            >
-                <ChevronRight size={16} style={{ transform: collapsed ? 'none' : 'rotate(180deg)' }} />
-            </button>
         </div>
     </div>
 );
 
-const VoiceActivityFeed = ({ logs }) => (
-    <div className="voice-feed">
+const LogsView = ({ token, onLogout }) => {
+    const [logs, setLogs] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchLogs = async () => {
+            if (!token) return;
+            try {
+                const res = await fetch(`${API_BASE_URL}/api/audit-logs`, {
+                    headers: { 'Authorization': `Bearer ${token}` },
+                    signal: AbortSignal.timeout(5000)
+                });
+                if (res.status === 401) {
+                    onLogout();
+                    return;
+                }
+                const json = await res.json();
+                setLogs(json);
+                setLoading(false);
+            } catch (err) {
+                console.error('Logs fetch error:', err);
+                setLoading(false);
+            }
+        };
+        fetchLogs();
+        const interval = setInterval(fetchLogs, 5000);
+        return () => clearInterval(interval);
+    }, [token, onLogout]);
+
+    return (
+        <div className="logs-view-page">
+            <header className="settings-header">
+                <h2>Audit Logs</h2>
+                <p>Real-time system telemetry and verification traces.</p>
+            </header>
+            <VoiceActivityFeed logs={logs} fullPage />
+        </div>
+    );
+};
+
+const VoiceActivityFeed = ({ logs, fullPage }) => (
+    <div className={`voice-feed ${fullPage ? 'full-page' : ''}`}>
         <div className="feed-header">
             <Activity size={14} color="#00ff80" />
             <span>AUDIT_LOGS // REALTIME_FLOW</span>
@@ -214,7 +265,6 @@ const VoiceActivityFeed = ({ logs }) => (
 
 const AppContent = ({ token, onLogout }) => {
     const [data, setData] = useState(null);
-    const [logs, setLogs] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [selectedContainer, setSelectedContainer] = useState(null);
@@ -223,29 +273,19 @@ const AppContent = ({ token, onLogout }) => {
         if (!token) return;
 
         try {
-            const [statsRes, logsRes] = await Promise.all([
-                fetch(`${API_BASE_URL}/api/stats`, {
-                    headers: { 'Authorization': `Bearer ${token}` },
-                    signal: AbortSignal.timeout(5000)
-                }),
-                fetch(`${API_BASE_URL}/api/audit-logs`, {
-                    headers: { 'Authorization': `Bearer ${token}` },
-                    signal: AbortSignal.timeout(5000)
-                })
-            ]);
+            const statsRes = await fetch(`${API_BASE_URL}/api/stats`, {
+                headers: { 'Authorization': `Bearer ${token}` },
+                signal: AbortSignal.timeout(5000)
+            });
 
             if (statsRes.status === 401) {
                 onLogout();
                 return;
             }
 
-            const [statsJson, logsJson] = await Promise.all([
-                statsRes.json(),
-                logsRes.json()
-            ]);
+            const statsJson = await statsRes.json();
 
             setData(statsJson);
-            setLogs(logsJson);
             setError(null);
             setLoading(false);
         } catch (err) {
@@ -343,7 +383,7 @@ const AppContent = ({ token, onLogout }) => {
                 />
             </main>
 
-            <div className="dashboard-row">
+            <div className="dashboard-row full-width">
                 <section className="containers-section">
                     <div className="section-title-row">
                         <h2><Box size={18} /> Applications</h2>
@@ -362,10 +402,6 @@ const AppContent = ({ token, onLogout }) => {
                         </AnimatePresence>
                     </div>
                 </section>
-
-                <div className="dashboard-sidebar">
-                    <VoiceActivityFeed logs={logs} />
-                </div>
             </div>
 
             <AnimatePresence>
@@ -390,25 +426,37 @@ const SettingsView = () => (
         <div className="settings-grid">
             <div className="settings-group">
                 <h3>General</h3>
-                <div className="setting-item">
-                    <span>Dark Mode Persistence</span>
-                    <input type="checkbox" checked readOnly />
+                <div className="setting-item glass-item">
+                    <div className="setting-info">
+                        <span className="setting-name">Dark Mode Persistence</span>
+                        <span className="setting-desc">Preserve high-contrast themes strictly</span>
+                    </div>
+                    <div className="custom-toggle active"><div className="knob" /></div>
                 </div>
-                <div className="setting-item">
-                    <span>Hardware Acceleration</span>
-                    <input type="checkbox" checked readOnly />
+                <div className="setting-item glass-item">
+                    <div className="setting-info">
+                        <span className="setting-name">Hardware Acceleration</span>
+                        <span className="setting-desc">Utilize GPU for rendering heavy animations</span>
+                    </div>
+                    <div className="custom-toggle active"><div className="knob" /></div>
                 </div>
             </div>
 
             <div className="settings-group">
                 <h3>Voice Inference</h3>
-                <div className="setting-item">
-                    <span>Automatic Captions</span>
-                    <input type="checkbox" checked readOnly />
+                <div className="setting-item glass-item">
+                    <div className="setting-info">
+                        <span className="setting-name">Automatic Captions</span>
+                        <span className="setting-desc">Generate subtitles for neural audio responses</span>
+                    </div>
+                    <div className="custom-toggle active"><div className="knob" /></div>
                 </div>
-                <div className="setting-item">
-                    <span>Transcription Cache</span>
-                    <input type="checkbox" checked readOnly />
+                <div className="setting-item glass-item">
+                    <div className="setting-info">
+                        <span className="setting-name">Transcription Cache</span>
+                        <span className="setting-desc">Store recent audio logs locally for faster access</span>
+                    </div>
+                    <div className="custom-toggle active"><div className="knob" /></div>
                 </div>
             </div>
         </div>
@@ -456,7 +504,7 @@ const App = () => {
                             <div className={`hamburger ${mobileNavOpen ? 'open' : ''}`} />
                         </button>
                         <div className="view-title">
-                            {currentView === 'dashboard' ? 'Infrastructure' : currentView === 'chat' ? 'Intelligence' : 'Settings'}
+                            {currentView === 'dashboard' ? 'Infrastructure' : currentView === 'chat' ? 'Intelligence' : currentView === 'logs' ? 'Audit Logs' : 'Settings'}
                         </div>
                     </div>
                     <div className="live-status">
@@ -470,6 +518,7 @@ const App = () => {
                 <div className="main-content">
                     {currentView === 'dashboard' && <AppContent token={token} onLogout={handleLogout} />}
                     {currentView === 'chat' && <ChatPage onBack={() => setCurrentView('dashboard')} />}
+                    {currentView === 'logs' && <LogsView token={token} onLogout={handleLogout} />}
                     {currentView === 'settings' && <SettingsView />}
                 </div>
             </div>
@@ -540,6 +589,12 @@ const App = () => {
                     gap: 12px;
                     padding: 0 12px 32px;
                     height: 64px;
+                    justify-content: space-between;
+                }
+
+                .side-nav.collapsed .nav-brand {
+                    justify-content: center;
+                    padding: 0 0 32px 0;
                 }
 
                 .brand-text {
@@ -594,21 +649,29 @@ const App = () => {
                 }
 
                 .collapse-btn {
-                    position: absolute;
-                    top: -48px;
-                    right: -24px;
-                    width: 24px;
-                    height: 24px;
-                    background: #000;
-                    border: 1px solid rgba(255,255,255,0.05);
-                    border-radius: 50%;
+                    width: 28px;
+                    height: 28px;
+                    background: #111;
+                    border: 1px solid rgba(255,255,255,0.1);
+                    border-radius: 8px;
                     display: flex;
                     align-items: center;
                     justify-content: center;
                     cursor: pointer;
-                    color: rgba(255,255,255,0.4);
+                    color: rgba(255,255,255,0.6);
                     transition: all 0.2s;
-                    z-index: 10;
+                    margin-left: auto;
+                }
+
+                .collapse-btn:hover {
+                    color: #fff;
+                    background: #222;
+                    border-color: rgba(255,255,255,0.2);
+                }
+
+                .side-nav.collapsed .collapse-btn {
+                    transform: rotate(180deg);
+                    margin: 0 auto;
                 }
 
                 .content-area {
@@ -664,8 +727,16 @@ const App = () => {
                     grid-template-columns: 1fr 320px;
                     gap: 24px;
                 }
+                
+                .dashboard-row.full-width {
+                    grid-template-columns: 1fr;
+                }
 
                 .dashboard-sidebar {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 24px;
+                }
                     display: flex;
                     flex-direction: column;
                     gap: 24px;
@@ -679,6 +750,17 @@ const App = () => {
                     height: 400px;
                     display: flex;
                     flex-direction: column;
+                }
+                
+                .voice-feed.full-page {
+                    height: calc(100vh - 200px);
+                }
+                
+                .logs-view-page {
+                    padding: 32px;
+                    max-width: 1400px;
+                    margin: 0 auto;
+                    width: 100%;
                 }
 
                 .feed-header {
@@ -705,21 +787,57 @@ const App = () => {
                 .log-entry .message { color: rgba(255,255,255,0.8); }
                 .log-entry.success .source { color: #00ff80; }
                 .log-entry.muted .message { color: rgba(255,255,255,0.3); }
-
+                .settings-view { padding: 32px; max-width: 800px; margin: 0 auto; width: 100%; }
                 .settings-header { margin-bottom: 32px; }
                 .settings-header h2 { font-size: 24px; font-weight: 800; margin-bottom: 8px; }
                 .settings-header p { color: rgba(255,255,255,0.4); font-size: 14px; }
 
                 .settings-group { margin-bottom: 40px; }
                 .settings-group h3 { font-size: 13px; font-weight: 700; color: rgba(255,255,255,0.3); text-transform: uppercase; margin-bottom: 20px; letter-spacing: 0.1em; }
-                .setting-item {
+                
+                .glass-item {
+                    background: rgba(255, 255, 255, 0.02);
+                    border: 1px solid rgba(255, 255, 255, 0.05);
+                    border-radius: 12px;
+                    padding: 20px 24px;
+                    margin-bottom: 12px;
                     display: flex;
-                    align-items: center;
                     justify-content: space-between;
-                    padding: 16px 0;
-                    border-bottom: 1px solid rgba(255,255,255,0.03);
+                    align-items: center;
+                    transition: all 0.2s;
                 }
-                .setting-item span { font-size: 14px; color: rgba(255,255,255,0.8); }
+                .glass-item:hover {
+                    background: rgba(255, 255, 255, 0.04);
+                    border-color: rgba(255, 255, 255, 0.1);
+                }
+                .setting-info { display: flex; flex-direction: column; gap: 4px; }
+                .setting-name { font-weight: 600; font-size: 14px; color: #fff; }
+                .setting-desc { font-size: 12px; color: rgba(255,255,255,0.4); }
+
+                .custom-toggle {
+                    width: 44px;
+                    height: 24px;
+                    background: #ff3333;
+                    border-radius: 12px;
+                    position: relative;
+                    cursor: pointer;
+                    transition: background 0.3s;
+                    flex-shrink: 0;
+                }
+                .custom-toggle.active { background: #00ff80; }
+                .custom-toggle .knob {
+                    position: absolute;
+                    top: 2px;
+                    left: 2px;
+                    width: 20px;
+                    height: 20px;
+                    background: #000;
+                    border-radius: 50%;
+                    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                }
+                .custom-toggle.active .knob {
+                    transform: translateX(20px);
+                }
 
                 .mobile-menu-btn { display: none; background: none; border: none; cursor: pointer; padding: 10px; }
                 .hamburger { width: 20px; height: 1px; background: #fff; position: relative; transition: all 0.3s; }
