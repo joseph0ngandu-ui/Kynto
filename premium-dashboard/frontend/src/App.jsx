@@ -142,7 +142,7 @@ const LoaderOverlay = () => (
 const Sidebar = ({ currentView, onViewChange, onLogout, collapsed, setCollapsed }) => (
     <div className={`side-nav ${collapsed ? 'collapsed' : ''}`}>
         <div className="nav-brand">
-            <div className="brand-content">
+            <div className="brand-content" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <NeuralLogo size={32} />
                 {!collapsed && <span className="brand-text">KYNTO</span>}
             </div>
@@ -584,18 +584,6 @@ const App = () => {
                     color: #fff;
                 }
 
-                .side-nav {
-                    width: 240px;
-                    background: #050505;
-                    border-right: 1px solid rgba(255,255,255,0.05);
-                    display: flex;
-                    flex-direction: column;
-                    padding: 24px 12px;
-                    transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-                    z-index: 1000;
-                    position: relative;
-                }
-
                 .side-nav.collapsed {
                     width: 72px;
                 }
@@ -612,6 +600,10 @@ const App = () => {
                 .side-nav.collapsed .nav-brand {
                     justify-content: center;
                     padding: 0 0 32px 0;
+                }
+                
+                .side-nav.collapsed .brand-content {
+                    margin-left: -5px; /* Offset to center visually */
                 }
 
                 .brand-text {
@@ -717,6 +709,7 @@ const App = () => {
                     display: flex;
                     flex-direction: column;
                     min-width: 0;
+                    height: 100vh;
                 }
 
                 .main-header {
@@ -728,6 +721,7 @@ const App = () => {
                     padding: 0 24px;
                     background: rgba(0,0,0,0.8);
                     backdrop-filter: blur(20px);
+                    flex-shrink: 0;
                 }
 
                 .header-left { display: flex; align-items: center; gap: 16px; }
@@ -740,7 +734,7 @@ const App = () => {
                     text-transform: uppercase;
                 }
 
-                .view-container {
+                .main-content {
                     flex: 1;
                     overflow-y: auto;
                     background: radial-gradient(circle at 50% 50%, #080808 0%, #000 100%);
