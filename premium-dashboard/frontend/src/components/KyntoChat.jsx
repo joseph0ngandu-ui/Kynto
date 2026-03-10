@@ -4,7 +4,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { MessageCircle, X, Send, Bot, User, Loader2, Maximize2 } from 'lucide-react';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://homeserver.taildbc5d3.ts.net';
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
 const KyntoChat = ({ onExpand }) => {
     const [isOpen, setIsOpen] = useState(false);
@@ -16,6 +16,7 @@ const KyntoChat = ({ onExpand }) => {
     const scrollRef = useRef(null);
     const inputRef = useRef(null);
     const pollRef = useRef(null);
+    const convIdRef = useRef(null);
 
     useEffect(() => {
         if (scrollRef.current) {
@@ -66,54 +67,50 @@ const KyntoChat = ({ onExpand }) => {
         }, 3000); // Poll every 3 seconds
     };
 
+    const getOrCreateConv = async () => {
+        if (convIdRef.current) return convIdRef.current;
+        const res = await fetch(`${API_BASE_URL}/api/conversations`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getToken()}` },
+            body: JSON.stringify({ title: 'Quick Chat' })
+        });
+        const data = await res.json();
+        convIdRef.current = data.id;
+        return data.id;
+    };
+
     const sendMessage = async (e) => {
         e.preventDefault();
         const trimmed = input.trim();
         if (!trimmed || polling) return;
 
-        const userMsg = { role: 'user', content: trimmed };
-        setMessages(prev => [...prev, userMsg]);
+        setMessages(prev => [...prev, { role: 'user', content: trimmed }]);
         setInput('');
 
-        // Build history (exclude the initial greeting)
-        const history = [...messages.slice(1), userMsg].map(m => ({
-            role: m.role,
-            content: m.content
-        }));
+        let convId;
+        try { convId = await getOrCreateConv(); }
+        catch (err) {
+            setMessages(prev => [...prev, { role: 'assistant', content: 'Failed to connect to Kynto.' }]);
+            return;
+        }
 
         try {
-            const res = await fetch(`${API_BASE_URL}/api/chat`, {
+            const res = await fetch(`${API_BASE_URL}/api/conversations/${convId}/message`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${getToken()}`
-                },
-                body: JSON.stringify({ message: trimmed, history }),
-                signal: AbortSignal.timeout(8000)
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getToken()}` },
+                body: JSON.stringify({ message: trimmed })
             });
-
             const data = await res.json();
 
             if (data.status === 'done' && data.response) {
-                // Fast path: agent responded within 10s
                 setMessages(prev => [...prev, { role: 'assistant', content: data.response }]);
             } else if (data.taskId) {
-                // Slow path: agent is still working, poll for result
                 pollForResult(data.taskId);
             } else {
-                setMessages(prev => [...prev, {
-                    role: 'assistant',
-                    content: data.error || 'No response from agent.'
-                }]);
+                setMessages(prev => [...prev, { role: 'assistant', content: data.error || 'No response from agent.' }]);
             }
         } catch (err) {
-            console.error('Chat error:', err);
-            setMessages(prev => [...prev, {
-                role: 'assistant',
-                content: (err.name === 'TimeoutError' || err.name === 'AbortError')
-                    ? 'Connection to Kynto timed out. Please check your network and try again.'
-                    : 'Connection to Kynto Core failed. Is the agent running?'
-            }]);
+            setMessages(prev => [...prev, { role: 'assistant', content: 'Connection to Kynto Core failed.' }]);
         }
     };
 

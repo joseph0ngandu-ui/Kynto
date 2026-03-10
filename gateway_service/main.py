@@ -112,7 +112,9 @@ async def process_task_loop(client, channel: str, thread_ts: str, task_text: str
             return
 
         # If it's a standard success response, print it out
-        await client.chat_postMessage(channel=channel, thread_ts=thread_ts, text=f"{response_text}")
+        if not response_text:
+            response_text = "_(No response)_"
+        await client.chat_postMessage(channel=channel, thread_ts=thread_ts, text=response_text)
 
 @app.event("file_shared")
 async def handle_voice_notes(body, logger, client):

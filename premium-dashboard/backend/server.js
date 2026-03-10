@@ -446,6 +446,13 @@ app.post('/api/chat', verifyToken, async (req, res) => {
             }
 
             responseText = responseText.replace(/<thinking>[\s\S]*?<\/thinking>/g, '').trim();
+            // Handle <request_permission> — render as a dashboard confirmation prompt
+            if (responseText.includes('<request_permission>')) {
+                const permMatch = responseText.match(/<request_permission>([\s\S]*?)<\/request_permission>/);
+                if (permMatch) {
+                    responseText = `⚠️ **Authorization Required**\n\n${permMatch[1].trim()}\n\nReply **yes** or **confirm** to proceed.`;
+                }
+            }
             addAuditLog('AI_CHAT', `Chat message processed: "${message.substring(0, 50)}..."`, 'info');
             return responseText || 'Task completed with no output.';
         } catch (error) {
@@ -558,6 +565,13 @@ app.post('/api/conversations/:id/message', verifyToken, async (req, res) => {
             const data = await response.json();
             let text = (data.files_changed && data.files_changed[0]) || data.error_log || 'No output.';
             text = text.replace(/<thinking>[\s\S]*?<\/thinking>/g, '').trim();
+            // Handle <request_permission> — render as a dashboard confirmation prompt
+            if (text.includes('<request_permission>')) {
+                const permMatch = text.match(/<request_permission>([\s\S]*?)<\/request_permission>/);
+                if (permMatch) {
+                    text = `⚠️ **Authorization Required**\n\n${permMatch[1].trim()}\n\nReply **yes** or **confirm** to proceed.`;
+                }
+            }
             return text;
         } catch (e) {
             return e.name === 'AbortError' ? 'Task timed out.' : 'Unable to reach AI engine.';

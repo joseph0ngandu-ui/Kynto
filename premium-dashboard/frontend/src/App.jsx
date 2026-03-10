@@ -407,7 +407,7 @@ const AppContent = ({ token, onLogout }) => {
                     </div>
                     <div className="container-grid">
                         <AnimatePresence mode="popLayout">
-                            {data.docker.map((c, i) => (
+                            {(Array.isArray(data.docker) ? data.docker : []).map((c, i) => (
                                 <ContainerCard
                                     key={c.id}
                                     container={c}
