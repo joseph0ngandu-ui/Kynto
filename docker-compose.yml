@@ -10,35 +10,58 @@ services:
       - ./media_sandbox:/tmp/kynto_media
     networks:
       - kynto_internal
+    restart: unless-stopped
+    healthcheck:
+      # Slack SocketMode bot — no HTTP server; confirm process PID 1 is alive
+      test: ["CMD-SHELL", "kill -0 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
 
   kynto_core:
     build: ./kynto_core
     env_file: .env
-    # CRITICAL: No docker.sock mounted here. Zero-Trust enforced.
     environment:
       - MCP_SERVER_URL=http://docker_mcp_bridge:8000
       - GITHUB_TOKEN=${GITHUB_TOKEN}
       - GROQ_API_KEY=${GROQ_API_KEY}
     volumes:
       - ./kynto_core/cli_wrapper.py:/home/kynto_agent/sandbox/cli_wrapper.py
-      - ./media_sandbox:/tmp/kynto_media:ro # Read-only for security
-      - ./agent_workspace:/home/kynto_agent/workspace # Dedicated coding sandbox
+      - ./media_sandbox:/tmp/kynto_media:ro
+      - ./agent_workspace:/home/kynto_agent/workspace
     networks:
       - kynto_internal
     depends_on:
-      - docker_mcp_bridge
+      docker_mcp_bridge:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      # aiohttp server on port 5000
+      test: ["CMD-SHELL", "python3 -c \"import socket; s=socket.create_connection(('localhost',5000),timeout=3); s.close()\""]
+      interval: 20s
+      timeout: 8s
+      retries: 3
+      start_period: 20s
 
   docker_mcp_bridge:
     build: ./docker_mcp_bridge
     volumes:
       - /run/user/1000/docker.sock:/var/run/docker.sock
       - ./logs/audit_trail.log:/var/log/kynto_audit.log
-      - ./agent_workspace:/workspace # Mount the coding sandbox for deployments
+      - ./agent_workspace:/workspace
     environment:
       - ALLOWED_ACTIONS=list,logs,restart,start,stop
       - ENFORCE_APPEND_ONLY_LOGS=true
     networks:
       - kynto_internal
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/system/info"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
 networks:
   kynto_internal:
