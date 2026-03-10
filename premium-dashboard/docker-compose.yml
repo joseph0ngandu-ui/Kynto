@@ -13,7 +13,7 @@ services:
       - kynto_kynto_internal
     restart: always
     healthcheck:
-      test: ["CMD", "node", "-e", "require('net').createConnection(3001,'localhost').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))"]
+      test: [ "CMD", "node", "-e", "require('net').createConnection(3001,'localhost').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))" ]
       interval: 15s
       timeout: 5s
       retries: 3
@@ -24,8 +24,8 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     ports:
-      - "80:80"
-      - "443:443"
+      - "3000:80"
+      - "3443:443"
     networks:
       - dashboard_net
     depends_on:
@@ -33,7 +33,7 @@ services:
         condition: service_healthy
     restart: always
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/"]
+      test: [ "CMD", "curl", "-f", "http://localhost/" ]
       interval: 15s
       timeout: 5s
       retries: 3
@@ -41,6 +41,7 @@ services:
 
 volumes:
   auth_data:
+
 
 networks:
   dashboard_net:
