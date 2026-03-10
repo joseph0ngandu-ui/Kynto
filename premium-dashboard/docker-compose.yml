@@ -24,8 +24,8 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     ports:
-      - "3000:80"
-      - "3443:443"
+      - "80:80"
+      - "443:443"
     networks:
       - dashboard_net
     depends_on:
