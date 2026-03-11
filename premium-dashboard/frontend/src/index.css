@@ -1197,6 +1197,12 @@ html, body, #root {
     background-repeat: no-repeat;
     background-position: right 10px center;
     padding-right: 32px;
+    /* Prevent long names from breaking flex layout */
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+    max-width: 100%;
+    flex: 1;
 }
 .styled-select:focus, .styled-select:hover {
     border-color: var(--border-hover);
