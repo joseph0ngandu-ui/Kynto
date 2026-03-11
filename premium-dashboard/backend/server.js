@@ -636,14 +636,32 @@ app.post('/api/chat/voice', verifyToken, async (req, res) => {
 });
 
 // Return available AI models based on active API keys
-app.get('/api/settings/models', verifyToken, (req, res) => {
+app.get('/api/settings/models', verifyToken, async (req, res) => {
     const available = {};
 
     if (process.env.GROQ_API_KEY) {
-        available.groq = [
-            { id: 'llama3-70b-8192', name: 'LLaMA 3 (70B)' },
-            { id: 'mixtral-8x7b-32768', name: 'Mixtral (8x7B)' }
-        ];
+        try {
+            const groqRes = await fetch('https://api.groq.com/openai/v1/models', {
+                headers: { 'Authorization': `Bearer ${process.env.GROQ_API_KEY}` },
+                signal: AbortSignal.timeout(5000)
+            });
+            if (groqRes.ok) {
+                const groqData = await groqRes.json();
+                // Filter and sort for better UI presentation, sorting by created date or just alphabetically
+                // Filter out some internal tool models if needed, but returning all is fine
+                available.groq = groqData.data
+                    .map(m => ({ id: m.id, name: m.id }))
+                    .sort((a, b) => a.id.localeCompare(b.id));
+            } else {
+                throw new Error(`Groq API returned ${groqRes.status}`);
+            }
+        } catch (error) {
+            console.error('[SETTINGS] Failed to fetch Groq models dynamically:', error.message);
+            available.groq = [
+                { id: 'llama3-70b-8192', name: 'LLaMA 3 (70B)' },
+                { id: 'mixtral-8x7b-32768', name: 'Mixtral (8x7B)' }
+            ];
+        }
     }
     
     if (process.env.ANTHROPIC_API_KEY) {
