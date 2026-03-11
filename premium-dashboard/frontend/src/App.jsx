@@ -575,7 +575,7 @@ const App = () => {
                 setCollapsed={setSidebarCollapsed}
             />
 
-            <div className="content-area">
+            <div className={`content-area ${sidebarCollapsed ? 'collapsed' : ''}`}>
                 <header className="main-header">
                     <div className="header-left">
                         <button className="mobile-menu-btn" onClick={() => setMobileNavOpen(!mobileNavOpen)}>
