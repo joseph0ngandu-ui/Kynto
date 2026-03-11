@@ -67,6 +67,79 @@ html, body, #root {
     width: 64px;
 }
 
+.side-nav-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 4px;
+    margin-bottom: 32px;
+}
+
+.nav-links {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+}
+
+.nav-link {
+    background: none;
+    border: 1px solid transparent;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    text-align: left;
+    text-decoration: none;
+}
+
+.nav-link:hover {
+    color: var(--text);
+    background: rgba(255,255,255,0.03);
+}
+
+.nav-link.active {
+    color: var(--text);
+    background: var(--surface-2);
+    border-color: var(--border);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+.nav-link span {
+    white-space: nowrap;
+    opacity: 1;
+    transition: opacity 0.2s;
+}
+
+.side-nav.collapsed .nav-link span {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.side-nav.collapsed .nav-link {
+    justify-content: center;
+    padding: 12px 0;
+}
+
+.nav-footer {
+    border-top: 1px solid var(--border);
+    padding-top: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.nav-link.logout:hover {
+    color: var(--accent);
+    background: var(--accent-dim);
+}
+
 /* ---------- Glass card ---------- */
 .glass-card {
     background: var(--surface-2);
@@ -800,9 +873,13 @@ html, body, #root {
 
 .stat-body {
     display: flex;
-    align-items: flex-end;
+    align-items: center;
     justify-content: space-between;
-    gap: 8px;
+    gap: 12px;
+}
+
+.stat-gauge {
+    flex-shrink: 0;
 }
 
 .stat-left {

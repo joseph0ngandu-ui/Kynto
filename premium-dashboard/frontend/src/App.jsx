@@ -16,14 +16,14 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://homeserver.taildbc
 const StatCard = ({ icon: Icon, title, value, label, progress, color, delay = 0 }) => (
     <motion.div
         className="stat-card"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay, duration: 0.5 }}
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ delay, duration: 0.4 }}
     >
         <div className="stat-noise" />
         <div className="stat-top">
-            <div className="stat-icon" style={{ background: color + '12' }}>
-                <Icon size={16} color={color} />
+            <div className="stat-icon" style={{ background: color + '15' }}>
+                <Icon size={14} color={color} />
             </div>
             <div className="stat-title">{title}</div>
         </div>
@@ -32,19 +32,18 @@ const StatCard = ({ icon: Icon, title, value, label, progress, color, delay = 0 
                 <div className="stat-value">{value}</div>
                 <div className="stat-label">{label}</div>
             </div>
-            {/* SVG Circular Gauge */}
-            <div className="stat-gauge" style={{ width: 42, height: 42, position: 'relative' }}>
-                <svg width="42" height="42" viewBox="0 0 42 42">
-                    <circle cx="21" cy="21" r="18" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="3" />
+            <div className="stat-gauge" style={{ width: 48, height: 48, position: 'relative' }}>
+                <svg width="48" height="48" viewBox="0 0 48 48">
+                    <circle cx="24" cy="24" r="20" fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="4" />
                     <motion.circle
-                        cx="21" cy="21" r="18" fill="none"
-                        stroke={color} strokeWidth="3"
-                        strokeDasharray="113.1"
-                        initial={{ strokeDashoffset: 113.1 }}
-                        animate={{ strokeDashoffset: 113.1 - (113.1 * progress) / 100 }}
-                        transition={{ delay: delay + 0.3, duration: 1.5, ease: "easeOut" }}
+                        cx="24" cy="24" r="20" fill="none"
+                        stroke={color} strokeWidth="4"
+                        strokeDasharray="125.6"
+                        initial={{ strokeDashoffset: 125.6 }}
+                        animate={{ strokeDashoffset: 125.6 - (125.6 * Math.min(progress, 100)) / 100 }}
+                        transition={{ delay: delay + 0.5, duration: 1.8, ease: [0.34, 1.56, 0.64, 1] }}
                         strokeLinecap="round"
-                        transform="rotate(-90 21 21)"
+                        transform="rotate(-90 24 24)"
                     />
                 </svg>
             </div>
@@ -183,18 +182,30 @@ const LoaderOverlay = () => (
 
 const Sidebar = ({ currentView, onViewChange, onLogout, collapsed, setCollapsed }) => (
     <div className={`side-nav ${collapsed ? 'collapsed' : ''}`}>
-        <div className="side-nav-head" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '32px', padding: '0 8px' }}>
-            <div className="brand-content" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <KyntoMark size={collapsed ? 32 : 36} animated={true} />
+        <div className="side-nav-head">
+            <div className="brand-content">
+                <KyntoMark size={collapsed ? 28 : 32} animated={true} />
                 {!collapsed && <span className="brand-text">KYNTO</span>}
             </div>
-            <button
-                className="collapse-btn"
-                onClick={() => setCollapsed(!collapsed)}
-                title={collapsed ? "Expand" : "Collapse"}
-            >
-                <ChevronRight size={14} style={{ transform: collapsed ? 'rotate(0deg)' : 'rotate(180deg)' }} />
-            </button>
+            {!collapsed && (
+                <button
+                    className="collapse-btn"
+                    onClick={() => setCollapsed(true)}
+                    title="Collapse"
+                >
+                    <ChevronRight size={14} style={{ transform: 'rotate(180deg)' }} />
+                </button>
+            )}
+            {collapsed && (
+                <button
+                    className="collapse-btn"
+                    onClick={() => setCollapsed(false)}
+                    title="Expand"
+                    style={{ margin: '0 auto' }}
+                >
+                    <ChevronRight size={14} />
+                </button>
+            )}
         </div>
 
         <nav className="nav-links">
@@ -253,7 +264,7 @@ const LogsView = ({ token, onLogout }) => {
             try {
                 const res = await fetch(`${API_BASE_URL}/api/audit-logs`, {
                     headers: { 'Authorization': `Bearer ${token}` },
-                    signal: AbortSignal.timeout(5000)
+                    signal: AbortSignal.timeout(12000)
                 });
                 if (res.status === 401) {
                     onLogout();
@@ -317,7 +328,7 @@ const AppContent = ({ token, onLogout }) => {
         try {
             const statsRes = await fetch(`${API_BASE_URL}/api/stats`, {
                 headers: { 'Authorization': `Bearer ${token}` },
-                signal: AbortSignal.timeout(5000)
+                signal: AbortSignal.timeout(12000)
             });
 
             if (statsRes.status === 401) {
@@ -332,7 +343,10 @@ const AppContent = ({ token, onLogout }) => {
             setLoading(false);
         } catch (err) {
             console.error('Fetch error:', err);
-            setError(`CONNECTION_FAILURE: Unable to reach kernel at ${API_BASE_URL}`);
+            // Only set error if we don't already have data to prevent UI flickering on intermittent lag
+            if (!data) {
+                setError(`CONNECTION_FAILURE: Unable to reach kernel at ${API_BASE_URL}`);
+            }
             setLoading(false);
         }
     };
