@@ -657,9 +657,10 @@ const SettingsView = ({ token }) => {
                                         }}
                                         disabled={availableModels.none || availableModels.error}
                                     >
-                                        {Object.keys(availableModels).map(p => (
-                                            <option key={p} value={p}>{p.toUpperCase()}</option>
-                                        ))}
+                                        {Object.keys(availableModels).map(p => {
+                                            const labels = { groq: 'Groq', anthropic: 'Anthropic', openai: 'OpenAI', gemini: 'Gemini', none: 'None' };
+                                            return <option key={p} value={p}>{labels[p] || p}</option>;
+                                        })}
                                     </select>
 
                                     <select 

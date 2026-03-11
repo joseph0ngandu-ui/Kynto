@@ -679,10 +679,28 @@ app.get('/api/settings/models', verifyToken, async (req, res) => {
     }
     
     if (process.env.GEMINI_API_KEY) {
-        available.gemini = [
-            { id: 'gemini-1.5-pro-latest', name: 'Gemini 1.5 Pro' },
-            { id: 'gemini-1.5-flash-latest', name: 'Gemini 1.5 Flash' }
-        ];
+        try {
+            const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${process.env.GEMINI_API_KEY}`, {
+                signal: AbortSignal.timeout(5000)
+            });
+            if (geminiRes.ok) {
+                const geminiData = await geminiRes.json();
+                available.gemini = geminiData.models
+                    .map(m => {
+                        const id = m.name.replace('models/', '');
+                        return { id, name: id };
+                    })
+                    .sort((a, b) => a.id.localeCompare(b.id));
+            } else {
+                throw new Error(`Gemini API returned ${geminiRes.status}`);
+            }
+        } catch (error) {
+            console.error('[SETTINGS] Failed to fetch Gemini models dynamically:', error.message);
+            available.gemini = [
+                { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro' },
+                { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash' }
+            ];
+        }
     }
 
     // Always provide at least a fallback if empty so the UI doesn't crash
