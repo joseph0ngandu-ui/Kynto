@@ -7,7 +7,7 @@ import {
     Settings, LogOut, ChevronRight
 } from 'lucide-react';
 import Login from './components/Login';
-import NeuralLogo from './components/NeuralLogo';
+import KyntoMark from './components/KyntoMark';
 import KyntoChat from './components/KyntoChat';
 import ChatPage from './components/ChatPage';
 
@@ -15,74 +15,116 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://homeserver.taildbc
 
 const StatCard = ({ icon: Icon, title, value, label, progress, color, delay = 0 }) => (
     <motion.div
-        className="glass-card"
+        className="stat-card"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay, duration: 0.5 }}
     >
-        <div className="card-header">
-            <div className="icon-box" style={{ background: color + '11', padding: '10px', borderRadius: '12px' }}>
-                <Icon size={20} color={color} />
+        <div className="stat-noise" />
+        <div className="stat-top">
+            <div className="stat-icon" style={{ background: color + '12' }}>
+                <Icon size={16} color={color} />
             </div>
-            <div className="header-text-group">
-                <h3>{title}</h3>
-            </div>
+            <div className="stat-title">{title}</div>
         </div>
-        <div className="card-value">{value}</div>
-        <div className="card-label">{label}</div>
-        <div className="progress-bar">
-            <motion.div
-                className="progress-fill"
-                style={{ background: color }}
-                initial={{ width: 0 }}
-                animate={{ width: `${progress}%` }}
-            />
+        <div className="stat-body">
+            <div className="stat-left">
+                <div className="stat-value">{value}</div>
+                <div className="stat-label">{label}</div>
+            </div>
+            {/* SVG Circular Gauge */}
+            <div className="stat-gauge" style={{ width: 42, height: 42, position: 'relative' }}>
+                <svg width="42" height="42" viewBox="0 0 42 42">
+                    <circle cx="21" cy="21" r="18" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="3" />
+                    <motion.circle
+                        cx="21" cy="21" r="18" fill="none"
+                        stroke={color} strokeWidth="3"
+                        strokeDasharray="113.1"
+                        initial={{ strokeDashoffset: 113.1 }}
+                        animate={{ strokeDashoffset: 113.1 - (113.1 * progress) / 100 }}
+                        transition={{ delay: delay + 0.3, duration: 1.5, ease: "easeOut" }}
+                        strokeLinecap="round"
+                        transform="rotate(-90 21 21)"
+                    />
+                </svg>
+            </div>
         </div>
     </motion.div>
 );
 
 const ContainerCard = ({ container, idx, onLogs, onAction }) => (
     <motion.div
-        className="container-card"
+        className="ccard-outer"
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ delay: idx * 0.05 }}
-        style={{ cursor: 'default' }}
     >
-        <div className="container-header">
-            <div className="container-title">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <h4 style={{ margin: 0, fontSize: '15px' }}>{container.name}</h4>
-                    <div className={`status-pulse ${container.state === 'running' ? 'status-running' : 'status-stopped'}`} />
+        <div className="ccard">
+            <div className="ccard-noise" />
+            <div className="ccard-head">
+                <div className="ccard-status">
+                    <div className={`cdot ${container.state === 'running' ? 'cdot--on' : 'cdot--off'}`}>
+                        <div className="cdot-core" />
+                        {container.state === 'running' && (
+                            <>
+                                <div className="cdot-ring r1" />
+                                <div className="cdot-ring r2" />
+                            </>
+                        )}
+                    </div>
+                    <span className="ccard-name">{container.name}</span>
+                </div>
+                <div className="ccard-uptime">{container.uptime}</div>
+            </div>
+
+            <div className="ccard-bars">
+                <div className="cbar">
+                    <span className="cbar-label">CPU</span>
+                    <div className="cbar-track">
+                        <motion.div
+                            className="cbar-fill"
+                            style={{ background: '#e63946', width: `${container.cpuPercent}%` }}
+                            initial={{ width: 0 }}
+                            animate={{ width: `${container.cpuPercent}%` }}
+                        />
+                    </div>
+                    <span className="cbar-val">{container.cpuPercent}%</span>
+                </div>
+                <div className="cbar">
+                    <span className="cbar-label">MEM</span>
+                    <div className="cbar-track">
+                        <motion.div
+                            className="cbar-fill"
+                            style={{ background: '#22c55e', width: `${container.memPercent}%` }}
+                            initial={{ width: 0 }}
+                            animate={{ width: `${container.memPercent}%` }}
+                        />
+                    </div>
+                    <span className="cbar-val">{container.memUsage}MB</span>
                 </div>
             </div>
-            <div className="uptime-group">
-                <span>{container.uptime}</span>
-            </div>
-        </div>
 
-        <div className="container-stats">
-            <div className="mini-stat">
-                <div className="mini-label">CPU {container.cpuPercent}%</div>
-                <div className="mini-progress"><div style={{ width: `${container.cpuPercent}%`, background: 'var(--accent)', height: '100%' }}></div></div>
+            <div className="ccard-foot">
+                <div className="ccard-acts">
+                    <button className="ccard-btn ccard-btn--ghost" onClick={() => onLogs(container)} title="Logs">
+                        <Terminal size={12} />
+                    </button>
+                    {container.state === 'running' ? (
+                        <>
+                            <button className="ccard-btn ccard-btn--red" onClick={() => onAction(container.id, 'stop')} title="Stop">
+                                <Square size={12} fill="currentColor" />
+                            </button>
+                            <button className="ccard-btn ccard-btn--ghost" onClick={() => onAction(container.id, 'restart')} title="Restart">
+                                <RotateCcw size={12} />
+                            </button>
+                        </>
+                    ) : (
+                        <button className="ccard-btn ccard-btn--green" onClick={() => onAction(container.id, 'start')} title="Start">
+                            <Play size={12} fill="currentColor" />
+                        </button>
+                    )}
+                </div>
             </div>
-            <div className="mini-stat">
-                <div className="mini-label">Memory {container.memUsage}MB</div>
-                <div className="mini-progress"><div style={{ width: `${container.memPercent}%`, background: 'var(--success)', height: '100%' }}></div></div>
-            </div>
-        </div>
-
-        <div className="container-actions">
-            <button className="action-btn" onClick={() => onLogs(container)} title="View Logs"><Terminal size={14} /></button>
-            <div className="action-divider" />
-            {container.state !== 'running' ? (
-                <button className="action-btn success" onClick={() => onAction(container.id, 'start')} title="Start"><Play size={14} /></button>
-            ) : (
-                <>
-                    <button className="action-btn danger" onClick={() => onAction(container.id, 'stop')} title="Stop"><Square size={14} /></button>
-                    <button className="action-btn" onClick={() => onAction(container.id, 'restart')} title="Restart"><RotateCcw size={14} /></button>
-                </>
-            )}
         </div>
     </motion.div>
 );
@@ -126,7 +168,7 @@ const LogOverlay = ({ container, onClose }) => {
 
 const LoaderOverlay = () => (
     <div className="loader-overlay">
-        <NeuralLogo size={120} />
+        <KyntoMark size={120} animated={true} />
         <div className="loader-text">
             <motion.h2
                 initial={{ opacity: 0, letterSpacing: "1.2em" }}
@@ -141,31 +183,19 @@ const LoaderOverlay = () => (
 
 const Sidebar = ({ currentView, onViewChange, onLogout, collapsed, setCollapsed }) => (
     <div className={`side-nav ${collapsed ? 'collapsed' : ''}`}>
-        <div className="nav-brand">
+        <div className="side-nav-head" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '32px', padding: '0 8px' }}>
             <div className="brand-content" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <NeuralLogo size={32} />
+                <KyntoMark size={collapsed ? 32 : 36} animated={true} />
                 {!collapsed && <span className="brand-text">KYNTO</span>}
             </div>
-            {!collapsed && (
-                <button
-                    className="collapse-btn"
-                    onClick={() => setCollapsed(true)}
-                    title="Collapse Sidebar"
-                >
-                    <ChevronRight size={16} style={{ transform: 'rotate(180deg)' }} />
-                </button>
-            )}
-        </div>
-
-        {collapsed && (
             <button
-                className="expand-btn-standalone"
-                onClick={() => setCollapsed(false)}
-                title="Expand Sidebar"
+                className="collapse-btn"
+                onClick={() => setCollapsed(!collapsed)}
+                title={collapsed ? "Expand" : "Collapse"}
             >
-                <ChevronRight size={16} />
+                <ChevronRight size={14} style={{ transform: collapsed ? 'rotate(0deg)' : 'rotate(180deg)' }} />
             </button>
-        )}
+        </div>
 
         <nav className="nav-links">
             <button
@@ -355,57 +385,74 @@ const AppContent = ({ token, onLogout }) => {
     if (!data) return <LoaderOverlay />;
 
     return (
-        <div className="dashboard-content">
-            <header className="page-header">
-                <h2>Infrastructure</h2>
-                <p>System health, memory pools, and active intelligence containers.</p>
-            </header>
+        <div className="dash-root">
+            <div className="dash-mesh" />
 
-            <main className="dashboard-grid">
-                <StatCard
-                    icon={Activity}
-                    title="CPU"
-                    value={`${data.system.cpu.load.toFixed(1)}%`}
-                    label="System Load"
-                    progress={data.system.cpu.load}
-                    color="#ff3333"
-                    delay={0}
-                />
-                <StatCard
-                    icon={Database}
-                    title="Memory"
-                    value={`${(data.system.memory.used / (1024 ** 3)).toFixed(1)}GB`}
-                    label="Memory Pool"
-                    progress={(data.system.memory.used / data.system.memory.total) * 100}
-                    color="#00ff80"
-                    delay={0.1}
-                />
-                <StatCard
-                    icon={Server}
-                    title="Mesh"
-                    value={data.system.docker.running}
-                    label={`${data.system.docker.total} Active`}
-                    progress={(data.system.docker.running / data.system.docker.total) * 100}
-                    color="#0080ff"
-                    delay={0.2}
-                />
-                <StatCard
-                    icon={HardDrive}
-                    title="Storage"
-                    value={`${data.system.disk[0]?.use}%`}
-                    label="Disk Array"
-                    progress={data.system.disk[0]?.use}
-                    color="#888"
-                    delay={0.3}
-                />
-            </main>
-
-            <div className="dashboard-row full-width">
-                <section className="containers-section">
-                    <div className="section-title-row">
-                        <h2><Box size={18} /> Applications</h2>
+            <div className="dash-content">
+                <header className="dash-hdr">
+                    <div className="dash-hdr-left">
+                        <h1 className="dash-title">Infrastructure</h1>
+                        <p className="dash-sub">Intelligence nexus health and resource telemetry.</p>
                     </div>
-                    <div className="container-grid">
+                    <div className="live-status">
+                        <div className="live-badge">
+                            <div className="live-dot" />
+                            LIVE_FLOW
+                        </div>
+                    </div>
+                </header>
+
+                <main className="stat-grid">
+                    <StatCard
+                        icon={Cpu}
+                        title="CPU"
+                        value={`${data.system.cpu.load.toFixed(1)}%`}
+                        label="Compute Load"
+                        progress={data.system.cpu.load}
+                        color="#e63946"
+                        delay={0}
+                    />
+                    <StatCard
+                        icon={Database}
+                        title="Memory"
+                        value={`${(data.system.memory.used / (1024 ** 3)).toFixed(1)}GB`}
+                        label="Allocated Pool"
+                        progress={(data.system.memory.used / data.system.memory.total) * 100}
+                        color="#22c55e"
+                        delay={0.1}
+                    />
+                    <StatCard
+                        icon={Server}
+                        title="Mesh"
+                        value={data.system.docker.running}
+                        label={`${data.system.docker.total} Containers`}
+                        progress={(data.system.docker.running / data.system.docker.total) * 100}
+                        color="#3b82f6"
+                        delay={0.2}
+                    />
+                    <StatCard
+                        icon={HardDrive}
+                        title="Storage"
+                        value={`${data.system.disk[0]?.use}%`}
+                        label="Disk Array"
+                        progress={data.system.disk[0]?.use}
+                        color="#f59e0b"
+                        delay={0.3}
+                    />
+                </main>
+
+                <section className="dash-section">
+                    <div className="dash-sec-hdr">
+                        <div className="dash-sec-title">
+                            <Box size={16} color="#e63946" />
+                            <span>Active Applications</span>
+                        </div>
+                        <div className="running-pill">
+                            <div className="running-dot" />
+                            <span>{data.docker.filter(c => c.state === 'running').length} RUNNING</span>
+                        </div>
+                    </div>
+                    <div className="ccard-grid">
                         <AnimatePresence mode="popLayout">
                             {(Array.isArray(data.docker) ? data.docker : []).map((c, i) => (
                                 <ContainerCard
@@ -419,16 +466,16 @@ const AppContent = ({ token, onLogout }) => {
                         </AnimatePresence>
                     </div>
                 </section>
-            </div>
 
-            <AnimatePresence>
-                {selectedContainer && (
-                    <LogOverlay
-                        container={selectedContainer}
-                        onClose={() => setSelectedContainer(null)}
-                    />
-                )}
-            </AnimatePresence>
+                <AnimatePresence>
+                    {selectedContainer && (
+                        <LogOverlay
+                            container={selectedContainer}
+                            onClose={() => setSelectedContainer(null)}
+                        />
+                    )}
+                </AnimatePresence>
+            </div>
         </div>
     );
 };
@@ -520,14 +567,11 @@ const App = () => {
                         <button className="mobile-menu-btn" onClick={() => setMobileNavOpen(!mobileNavOpen)}>
                             <div className={`hamburger ${mobileNavOpen ? 'open' : ''}`} />
                         </button>
-                        <div className="view-title">
-                            {currentView === 'dashboard' ? 'Infrastructure' : currentView === 'chat' ? 'Intelligence' : currentView === 'logs' ? 'Audit Logs' : 'Settings'}
-                        </div>
-                    </div>
-                    <div className="live-status">
-                        <div className="live-badge">
-                            <div className="pulse-dot" />
-                            LIVE
+                        <div className="header-id">
+                            <KyntoMark size={20} animated={true} />
+                            <div className="view-title">
+                                {currentView === 'dashboard' ? 'INFRASTRUCTURE' : currentView === 'chat' ? 'INTELLIGENCE' : currentView === 'logs' ? 'AUDIT_LOGS' : 'SETTINGS'}
+                            </div>
                         </div>
                     </div>
                 </header>
@@ -557,7 +601,7 @@ const App = () => {
                             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
                         >
                             <div className="mobile-nav-header">
-                                <NeuralLogo size={32} />
+                                <KyntoMark size={32} animated={true} />
                                 <span className="brand-text">KYNTO</span>
                                 <button className="close-mobile-nav" onClick={() => setMobileNavOpen(false)}><X size={20} /></button>
                             </div>
@@ -574,376 +618,6 @@ const App = () => {
 
             <KyntoChat onExpand={() => setCurrentView('chat')} />
 
-            <style jsx>{`
-                .app-shell {
-                    display: flex;
-                    height: 100vh;
-                    width: 100vw;
-                    background: #000;
-                    overflow: hidden;
-                    color: #fff;
-                }
-
-                .side-nav.collapsed {
-                    width: 72px;
-                }
-
-                .nav-brand {
-                    display: flex;
-                    align-items: center;
-                    gap: 12px;
-                    padding: 0 12px 32px;
-                    height: 64px;
-                    justify-content: space-between;
-                }
-
-                .side-nav.collapsed .nav-brand {
-                    justify-content: center;
-                    padding: 0 0 32px 0;
-                }
-                
-                .side-nav.collapsed .brand-content {
-                    margin-left: -5px; /* Offset to center visually */
-                }
-
-                .brand-text {
-                    font-size: 16px;
-                    font-weight: 800;
-                    letter-spacing: 0.1em;
-                    white-space: nowrap;
-                }
-
-                .nav-links {
-                    display: flex;
-                    flex-direction: column;
-                    gap: 4px;
-                }
-
-                .nav-link {
-                    background: none;
-                    border: none;
-                    color: rgba(255,255,255,0.4);
-                    display: flex;
-                    align-items: center;
-                    gap: 16px;
-                    padding: 12px;
-                    border-radius: 12px;
-                    cursor: pointer;
-                    font-size: 14px;
-                    transition: all 0.2s;
-                    text-align: left;
-                    white-space: nowrap;
-                    overflow: hidden;
-                    text-overflow: ellipsis;
-                }
-
-                .nav-link:hover {
-                    color: #fff;
-                    background: rgba(255,255,255,0.03);
-                }
-
-                .nav-link.active {
-                    color: #fff;
-                    background: #111;
-                    border: 1px solid rgba(255,255,255,0.05);
-                }
-
-                .nav-spacer { flex: 1; }
-
-                .nav-footer {
-                    display: flex;
-                    flex-direction: column;
-                    gap: 4px;
-                    position: relative;
-                }
-
-                .collapse-btn {
-                    width: 28px;
-                    height: 28px;
-                    background: #111;
-                    border: 1px solid rgba(255,255,255,0.1);
-                    border-radius: 8px;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    cursor: pointer;
-                    color: rgba(255,255,255,0.6);
-                    transition: all 0.2s;
-                    margin-left: auto;
-                }
-
-                .collapse-btn:hover {
-                    color: #fff;
-                    background: #222;
-                    border-color: rgba(255,255,255,0.2);
-                }
-                
-                .expand-btn-standalone {
-                    width: 48px;
-                    height: 48px;
-                    background: #111;
-                    border: 1px solid rgba(255,255,255,0.1);
-                    border-radius: 12px;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    cursor: pointer;
-                    color: rgba(255,255,255,0.6);
-                    transition: all 0.2s;
-                    margin: 0 auto 32px auto;
-                }
-
-                .expand-btn-standalone:hover {
-                    color: #fff;
-                    background: #222;
-                    border-color: rgba(255,255,255,0.2);
-                }
-
-                .side-nav.collapsed .collapse-btn {
-                    transform: rotate(180deg);
-                    margin: 0 auto;
-                }
-
-                .content-area {
-                    flex: 1;
-                    display: flex;
-                    flex-direction: column;
-                    min-width: 0;
-                    height: 100vh;
-                }
-
-                .main-header {
-                    height: 64px;
-                    border-bottom: 1px solid rgba(255,255,255,0.05);
-                    display: flex;
-                    align-items: center;
-                    justify-content: space-between;
-                    padding: 0 24px;
-                    background: rgba(0,0,0,0.8);
-                    backdrop-filter: blur(20px);
-                    flex-shrink: 0;
-                }
-
-                .header-left { display: flex; align-items: center; gap: 16px; }
-
-                .view-title {
-                    font-size: 13px;
-                    font-weight: 700;
-                    letter-spacing: 0.05em;
-                    color: rgba(255,255,255,0.4);
-                    text-transform: uppercase;
-                }
-
-                .main-content {
-                    flex: 1;
-                    overflow-y: auto;
-                    background: radial-gradient(circle at 50% 50%, #080808 0%, #000 100%);
-                }
-
-                .dashboard-content {
-                    padding: 32px;
-                    max-width: 1400px;
-                    margin: 0 auto;
-                    width: 100%;
-                }
-
-                .dashboard-grid {
-                    display: grid;
-                    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-                    gap: 16px;
-                    margin-bottom: 32px;
-                }
-
-                .dashboard-row {
-                    display: grid;
-                    grid-template-columns: 1fr 320px;
-                    gap: 24px;
-                }
-                
-                .dashboard-row.full-width {
-                    grid-template-columns: 1fr;
-                }
-
-                .dashboard-sidebar {
-                    display: flex;
-                    flex-direction: column;
-                    gap: 24px;
-                }
-                    display: flex;
-                    flex-direction: column;
-                    gap: 24px;
-                }
-
-                .voice-feed {
-                    background: #050505;
-                    border: 1px solid rgba(255,255,255,0.03);
-                    border-radius: 16px;
-                    padding: 20px;
-                    height: 400px;
-                    display: flex;
-                    flex-direction: column;
-                }
-                
-                .voice-feed.full-page {
-                    height: calc(100vh - 200px);
-                }
-                
-                .logs-view-page {
-                    padding: 32px;
-                    max-width: 1400px;
-                    margin: 0 auto;
-                    width: 100%;
-                }
-
-                .feed-header {
-                    display: flex;
-                    align-items: center;
-                    gap: 10px;
-                    font-size: 11px;
-                    font-weight: 700;
-                    color: rgba(255,255,255,0.4);
-                    margin-bottom: 20px;
-                    letter-spacing: 0.1em;
-                }
-
-                .feed-content {
-                    flex: 1;
-                    overflow-y: auto;
-                    font-family: 'JetBrains Mono', monospace;
-                    font-size: 11px;
-                }
-
-                .log-entry { margin-bottom: 12px; line-height: 1.4; }
-                .log-entry .timestamp { color: rgba(255,255,255,0.2); margin-right: 8px; }
-                .log-entry .source { color: #ff3333; margin-right: 8px; font-weight: 600; }
-                .log-entry .message { color: rgba(255,255,255,0.8); }
-                .log-entry.success .source { color: #00ff80; }
-                .log-entry.muted .message { color: rgba(255,255,255,0.3); }
-                
-                .settings-view { padding: 32px; max-width: 800px; margin: 0 auto; width: 100%; }
-                
-                .page-header { margin-bottom: 32px; }
-                .page-header h2 { font-size: 24px; font-weight: 800; margin-bottom: 8px; }
-                .page-header p { color: rgba(255,255,255,0.4); font-size: 14px; }
-
-                .settings-group { margin-bottom: 40px; }
-                .settings-group h3 { font-size: 13px; font-weight: 700; color: rgba(255,255,255,0.3); text-transform: uppercase; margin-bottom: 20px; letter-spacing: 0.1em; }
-                
-                .glass-item {
-                    background: rgba(255, 255, 255, 0.02);
-                    border: 1px solid rgba(255, 255, 255, 0.05);
-                    border-radius: 12px;
-                    padding: 20px 24px;
-                    margin-bottom: 12px;
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    transition: all 0.2s;
-                }
-                .glass-item:hover {
-                    background: rgba(255, 255, 255, 0.04);
-                    border-color: rgba(255, 255, 255, 0.1);
-                }
-                .setting-info { display: flex; flex-direction: column; gap: 4px; }
-                .setting-name { font-weight: 600; font-size: 14px; color: #fff; }
-                .setting-desc { font-size: 12px; color: rgba(255,255,255,0.4); }
-
-                .custom-toggle {
-                    width: 44px;
-                    height: 24px;
-                    background: #ff3333;
-                    border-radius: 12px;
-                    position: relative;
-                    cursor: pointer;
-                    transition: background 0.3s;
-                    flex-shrink: 0;
-                }
-                .custom-toggle.active { background: #00ff80; }
-                .custom-toggle .knob {
-                    position: absolute;
-                    top: 2px;
-                    left: 2px;
-                    width: 20px;
-                    height: 20px;
-                    background: #000;
-                    border-radius: 50%;
-                    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-                }
-                .custom-toggle.active .knob {
-                    transform: translateX(20px);
-                }
-
-                .mobile-menu-btn { display: none; background: none; border: none; cursor: pointer; padding: 10px; }
-                .hamburger { width: 20px; height: 1px; background: #fff; position: relative; transition: all 0.3s; }
-                .hamburger::before, .hamburger::after { content: ''; width: 20px; height: 1px; background: #fff; position: absolute; left: 0; transition: all 0.3s; }
-                .hamburger::before { top: -6px; }
-                .hamburger::after { top: 6px; }
-                
-                .mobile-nav-overlay {
-                    position: fixed;
-                    top: 0;
-                    left: 0;
-                    width: 100vw;
-                    height: 100vh;
-                    background: rgba(0,0,0,0.9);
-                    backdrop-filter: blur(10px);
-                    z-index: 2000;
-                }
-
-                .mobile-nav-content {
-                    width: 280px;
-                    height: 100%;
-                    background: #050505;
-                    padding: 24px;
-                    display: flex;
-                    flex-direction: column;
-                }
-
-                .mobile-nav-header { display: flex; align-items: center; gap: 12px; margin-bottom: 48px; }
-                .mobile-links { display: flex; flex-direction: column; gap: 24px; }
-                .mobile-links button { background: none; border: none; color: #fff; font-size: 18px; font-weight: 700; text-align: left; cursor: pointer; }
-
-                @media (max-width: 1024px) {
-                    .side-nav { display: none; }
-                    .mobile-menu-btn { display: block; }
-                    .dashboard-row { grid-template-columns: 1fr; }
-                    .dashboard-row.full-width { grid-template-columns: 1fr; }
-                    .dashboard-sidebar { display: none; }
-                    .dashboard-content { padding: 24px 16px; }
-                    .logs-view-page { padding: 24px 16px; }
-                    .settings-view { padding: 24px 16px; }
-                    
-                    .main-header {
-                        padding: 0 16px;
-                        height: 56px;
-                    }
-                    
-                    .header-left { gap: 12px; }
-                    
-                    .view-title { font-size: 13px; }
-                }
-
-                .live-badge {
-                    display: flex;
-                    align-items: center;
-                    gap: 6px;
-                    background: rgba(0, 255, 128, 0.05);
-                    color: #00ff80;
-                    padding: 4px 10px;
-                    border-radius: 4px;
-                    font-size: 10px;
-                    font-weight: 900;
-                    border: 1px solid rgba(0, 255, 128, 0.1);
-                }
-
-                .pulse-dot {
-                    width: 4px;
-                    height: 4px;
-                    background: #00ff80;
-                    border-radius: 50%;
-                    box-shadow: 0 0 8px #00ff80;
-                }
-            `}</style>
         </div>
     );
 };
