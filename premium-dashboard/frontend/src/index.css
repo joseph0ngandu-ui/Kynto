@@ -119,25 +119,30 @@ html, body, #root {
 
 /* ---------- Collapse btn ---------- */
 .collapse-btn {
+    position: absolute;
+    right: -13px; /* Float half outside */
+    top: max(calc(env(safe-area-inset-top, 0px) + 54px), 54px);
     width: 26px;
     height: 26px;
-    background: rgba(255,255,255,0.04);
+    background: var(--surface-1);
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: 50%; /* Circle tab */
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
     color: var(--text-muted);
     transition: all 0.2s;
-    flex-shrink: 0;
+    z-index: 200;
 }
 
 .collapse-btn:hover {
     color: var(--text);
-    background: rgba(255,255,255,0.08);
+    background: var(--surface-2);
     border-color: var(--border-hover);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
 }
+
 
 /* ---------- Live badge ---------- */
 .live-status { display: flex; align-items: center; }

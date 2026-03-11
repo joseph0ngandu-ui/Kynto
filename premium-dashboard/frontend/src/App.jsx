@@ -196,8 +196,19 @@ const Sidebar = ({ currentView, onViewChange, onLogout, collapsed, setCollapsed 
         className="side-nav"
         animate={{ width: collapsed ? COLLAPSED_W : SIDEBAR_W }}
         transition={spring}
-        style={{ overflow: 'hidden' }}
+        style={{ overflow: 'visible', zIndex: 100 }}
     >
+        {/* Absolute floating toggle tab */}
+        <motion.button
+            className="collapse-btn"
+            onClick={() => setCollapsed(!collapsed)}
+            animate={{ rotate: collapsed ? 0 : 180 }}
+            transition={spring}
+            title={collapsed ? 'Expand' : 'Collapse'}
+        >
+            <ChevronRight size={13} />
+        </motion.button>
+
         {/* Brand row */}
         <div className="side-nav-head">
             <motion.div
@@ -228,17 +239,6 @@ const Sidebar = ({ currentView, onViewChange, onLogout, collapsed, setCollapsed 
                     )}
                 </AnimatePresence>
             </motion.div>
-
-            <motion.button
-                className="collapse-btn"
-                onClick={() => setCollapsed(!collapsed)}
-                animate={{ rotate: collapsed ? 0 : 180 }}
-                transition={spring}
-                title={collapsed ? 'Expand' : 'Collapse'}
-                style={{ flexShrink: 0, marginLeft: collapsed ? 'auto' : 0, marginRight: collapsed ? 'auto' : 0 }}
-            >
-                <ChevronRight size={13} />
-            </motion.button>
         </div>
 
         {/* Main nav */}
