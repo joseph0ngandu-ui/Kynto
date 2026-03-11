@@ -308,20 +308,17 @@ html, body, #root {
     left: 0;
     top: 0;
     bottom: 0;
-    width: var(--sidebar-w);
+    /* Width is driven by Framer Motion — no CSS transition needed */
     background: var(--surface-1);
     border-right: 1px solid var(--border);
     display: flex;
     flex-direction: column;
     padding: max(calc(env(safe-area-inset-top, 0px) + 20px), 52px) 12px 20px;
     z-index: 100;
-    transition: width 0.25s cubic-bezier(0.4,0,0.2,1);
     overflow: hidden;
 }
 
-.side-nav.collapsed {
-    width: 64px;
-}
+/* .side-nav.collapsed width is now handled by Framer Motion animate={{ width: COLLAPSED_W }} */
 
 .side-nav-head {
     display: flex;

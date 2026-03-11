@@ -180,78 +180,162 @@ const LoaderOverlay = () => (
     </div>
 );
 
+const NAV_ITEMS = [
+    { id: 'dashboard', label: 'Dashboard', Icon: LayoutDashboard },
+    { id: 'chat',      label: 'Kynto Chat', Icon: MessageSquare },
+    { id: 'logs',      label: 'Audit Logs', Icon: Activity },
+];
+
+const SIDEBAR_W  = 220;
+const COLLAPSED_W = 64;
+
+const spring = { type: 'spring', stiffness: 320, damping: 28, mass: 0.6 };
+
 const Sidebar = ({ currentView, onViewChange, onLogout, collapsed, setCollapsed }) => (
-    <div className={`side-nav ${collapsed ? 'collapsed' : ''}`}>
+    <motion.div
+        className="side-nav"
+        animate={{ width: collapsed ? COLLAPSED_W : SIDEBAR_W }}
+        transition={spring}
+        style={{ overflow: 'hidden' }}
+    >
+        {/* Brand row */}
         <div className="side-nav-head">
-            <div className="brand-content">
-                <KyntoMark size={collapsed ? 28 : 32} animated={true} />
-                {!collapsed && <span className="brand-text">KYNTO</span>}
-            </div>
-            {!collapsed && (
-                <button
-                    className="collapse-btn"
-                    onClick={() => setCollapsed(true)}
-                    title="Collapse"
+            <motion.div
+                className="brand-content"
+                animate={{ justifyContent: collapsed ? 'center' : 'flex-start' }}
+                transition={spring}
+            >
+                <motion.div
+                    animate={{ scale: collapsed ? 0.85 : 1 }}
+                    transition={spring}
+                    style={{ flexShrink: 0 }}
                 >
-                    <ChevronRight size={14} style={{ transform: 'rotate(180deg)' }} />
-                </button>
-            )}
-            {collapsed && (
-                <button
-                    className="collapse-btn"
-                    onClick={() => setCollapsed(false)}
-                    title="Expand"
-                    style={{ margin: '0 auto' }}
-                >
-                    <ChevronRight size={14} />
-                </button>
-            )}
+                    <KyntoMark size={32} animated={true} />
+                </motion.div>
+                <AnimatePresence mode="wait">
+                    {!collapsed && (
+                        <motion.span
+                            key="brand-label"
+                            className="brand-text"
+                            initial={{ opacity: 0, x: -8, width: 0 }}
+                            animate={{ opacity: 1, x: 0, width: 'auto' }}
+                            exit={{ opacity: 0, x: -8, width: 0 }}
+                            transition={{ duration: 0.18, ease: 'easeOut' }}
+                            style={{ overflow: 'hidden', whiteSpace: 'nowrap' }}
+                        >
+                            KYNTO
+                        </motion.span>
+                    )}
+                </AnimatePresence>
+            </motion.div>
+
+            <motion.button
+                className="collapse-btn"
+                onClick={() => setCollapsed(!collapsed)}
+                animate={{ rotate: collapsed ? 0 : 180 }}
+                transition={spring}
+                title={collapsed ? 'Expand' : 'Collapse'}
+                style={{ flexShrink: 0, marginLeft: collapsed ? 'auto' : 0, marginRight: collapsed ? 'auto' : 0 }}
+            >
+                <ChevronRight size={13} />
+            </motion.button>
         </div>
 
+        {/* Main nav */}
         <nav className="nav-links">
-            <button
-                className={`nav-link ${currentView === 'dashboard' ? 'active' : ''}`}
-                onClick={() => onViewChange('dashboard')}
-                title="Dashboard"
-            >
-                <LayoutDashboard size={20} />
-                {!collapsed && <span>Dashboard</span>}
-            </button>
-            <button
-                className={`nav-link ${currentView === 'chat' ? 'active' : ''}`}
-                onClick={() => onViewChange('chat')}
-                title="Kynto Chat"
-            >
-                <MessageSquare size={20} />
-                {!collapsed && <span>Kynto Chat</span>}
-            </button>
-            <button
-                className={`nav-link ${currentView === 'logs' ? 'active' : ''}`}
-                onClick={() => onViewChange('logs')}
-                title="Audit Logs"
-            >
-                <Activity size={20} />
-                {!collapsed && <span>Audit Logs</span>}
-            </button>
+            {NAV_ITEMS.map(({ id, label, Icon }) => (
+                <motion.button
+                    key={id}
+                    className={`nav-link ${currentView === id ? 'active' : ''}`}
+                    onClick={() => onViewChange(id)}
+                    title={label}
+                    animate={{ paddingLeft: collapsed ? 0 : 12, paddingRight: collapsed ? 0 : 12, justifyContent: collapsed ? 'center' : 'flex-start' }}
+                    transition={spring}
+                >
+                    <motion.span
+                        animate={{ scale: collapsed ? 1.1 : 1 }}
+                        transition={spring}
+                        style={{ flexShrink: 0, display: 'flex' }}
+                    >
+                        <Icon size={20} />
+                    </motion.span>
+                    <AnimatePresence mode="wait">
+                        {!collapsed && (
+                            <motion.span
+                                key={`label-${id}`}
+                                initial={{ opacity: 0, x: -6 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: -6 }}
+                                transition={{ duration: 0.15, ease: 'easeOut' }}
+                                style={{ overflow: 'hidden', whiteSpace: 'nowrap' }}
+                            >
+                                {label}
+                            </motion.span>
+                        )}
+                    </AnimatePresence>
+                </motion.button>
+            ))}
         </nav>
 
         <div className="nav-spacer" />
 
+        {/* Footer nav */}
         <div className="nav-footer">
-            <button
-                className={`nav-link ${currentView === 'settings' ? 'active' : ''}`}
-                onClick={() => onViewChange('settings')}
-                title="Settings"
+            {[{ id: 'settings', label: 'Settings', Icon: Settings }].map(({ id, label, Icon }) => (
+                <motion.button
+                    key={id}
+                    className={`nav-link ${currentView === id ? 'active' : ''}`}
+                    onClick={() => onViewChange(id)}
+                    title={label}
+                    animate={{ paddingLeft: collapsed ? 0 : 12, paddingRight: collapsed ? 0 : 12, justifyContent: collapsed ? 'center' : 'flex-start' }}
+                    transition={spring}
+                >
+                    <motion.span animate={{ scale: collapsed ? 1.1 : 1 }} transition={spring} style={{ display: 'flex' }}>
+                        <Icon size={20} />
+                    </motion.span>
+                    <AnimatePresence mode="wait">
+                        {!collapsed && (
+                            <motion.span
+                                key={`label-${id}`}
+                                initial={{ opacity: 0, x: -6 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: -6 }}
+                                transition={{ duration: 0.15 }}
+                                style={{ overflow: 'hidden', whiteSpace: 'nowrap' }}
+                            >
+                                {label}
+                            </motion.span>
+                        )}
+                    </AnimatePresence>
+                </motion.button>
+            ))}
+            <motion.button
+                className="nav-link logout"
+                onClick={onLogout}
+                title="Sign Out"
+                animate={{ paddingLeft: collapsed ? 0 : 12, paddingRight: collapsed ? 0 : 12, justifyContent: collapsed ? 'center' : 'flex-start' }}
+                transition={spring}
             >
-                <Settings size={20} />
-                {!collapsed && <span>Settings</span>}
-            </button>
-            <button className="nav-link logout" onClick={onLogout} title="Sign Out">
-                <LogOut size={20} />
-                {!collapsed && <span>Sign Out</span>}
-            </button>
+                <motion.span animate={{ scale: collapsed ? 1.1 : 1 }} transition={spring} style={{ display: 'flex' }}>
+                    <LogOut size={20} />
+                </motion.span>
+                <AnimatePresence mode="wait">
+                    {!collapsed && (
+                        <motion.span
+                            key="logout-label"
+                            initial={{ opacity: 0, x: -6 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -6 }}
+                            transition={{ duration: 0.15 }}
+                            style={{ overflow: 'hidden', whiteSpace: 'nowrap' }}
+                        >
+                            Sign Out
+                        </motion.span>
+                    )}
+                </AnimatePresence>
+            </motion.button>
         </div>
-    </div>
+    </motion.div>
 );
 
 const LogsView = ({ token, onLogout }) => {
