@@ -578,52 +578,113 @@ const AppContent = ({ token, onLogout }) => {
     );
 };
 
-const SettingsView = () => (
-    <div className="settings-view">
-        <header className="page-header">
-            <h2>Preferences</h2>
-            <p>Configure your intelligence nexus parameters</p>
-        </header>
+const MODELS = {
+    groq: [
+        { id: 'llama3-70b-8192', name: 'LLaMA 3 (70B)' },
+        { id: 'mixtral-8x7b-32768', name: 'Mixtral (8x7B)' }
+    ],
+    anthropic: [
+        { id: 'claude-3-sonnet', name: 'Claude 3 Sonnet' },
+        { id: 'claude-3-opus', name: 'Claude 3 Opus' }
+    ],
+    openai: [
+        { id: 'gpt-4o', name: 'GPT-4o' },
+        { id: 'gpt-4-turbo', name: 'GPT-4 Turbo' }
+    ]
+};
 
-        <div className="settings-grid">
-            <div className="settings-group">
-                <h3>General</h3>
-                <div className="setting-item glass-item">
-                    <div className="setting-info">
-                        <span className="setting-name">Dark Mode Persistence</span>
-                        <span className="setting-desc">Preserve high-contrast themes strictly</span>
-                    </div>
-                    <div className="custom-toggle active"><div className="knob" /></div>
-                </div>
-                <div className="setting-item glass-item">
-                    <div className="setting-info">
-                        <span className="setting-name">Hardware Acceleration</span>
-                        <span className="setting-desc">Utilize GPU for rendering heavy animations</span>
-                    </div>
-                    <div className="custom-toggle active"><div className="knob" /></div>
-                </div>
-            </div>
+const SettingsView = ({ token }) => {
+    const [provider, setProvider] = useState(() => localStorage.getItem('kynto_ai_provider') || 'groq');
+    const [model, setModel] = useState(() => localStorage.getItem('kynto_ai_model') || 'llama3-70b-8192');
+    const [saving, setSaving] = useState(false);
 
-            <div className="settings-group">
-                <h3>Voice Inference</h3>
-                <div className="setting-item glass-item">
-                    <div className="setting-info">
-                        <span className="setting-name">Automatic Captions</span>
-                        <span className="setting-desc">Generate subtitles for neural audio responses</span>
+    const handleSaveModel = async (newProvider, newModel) => {
+        setProvider(newProvider);
+        setModel(newModel);
+        localStorage.setItem('kynto_ai_provider', newProvider);
+        localStorage.setItem('kynto_ai_model', newModel);
+        setSaving(true);
+        try {
+            await fetch(`${API_BASE_URL}/api/settings/model`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ provider: newProvider, model: newModel })
+            });
+        } catch (err) {
+            console.error('Failed to sync model to backend', err);
+        }
+        setTimeout(() => setSaving(false), 500);
+    };
+
+    return (
+        <div className="settings-view">
+            <header className="page-header">
+                <h2>Preferences</h2>
+                <p>Configure your intelligence nexus parameters</p>
+            </header>
+
+            <div className="settings-grid">
+                <div className="settings-group">
+                    <h3>Intelligence Settings</h3>
+                    <div className="setting-item glass-item" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '16px' }}>
+                        <div className="setting-info" style={{ width: '100%' }}>
+                            <span className="setting-name">Primary AI Model</span>
+                            <span className="setting-desc">Select the neural engine for the intelligence section. If API limits are hit, the system will attempt to fallback automatically.</span>
+                        </div>
+                        
+                        <div style={{ display: 'flex', gap: '12px', width: '100%' }}>
+                            <select 
+                                className="styled-select" 
+                                value={provider} 
+                                onChange={(e) => {
+                                    const p = e.target.value;
+                                    handleSaveModel(p, MODELS[p][0].id);
+                                }}
+                            >
+                                <option value="groq">Groq (Fast Inference)</option>
+                                <option value="anthropic">Anthropic</option>
+                                <option value="openai">OpenAI</option>
+                            </select>
+
+                            <select 
+                                className="styled-select" 
+                                value={model} 
+                                onChange={(e) => handleSaveModel(provider, e.target.value)}
+                            >
+                                {MODELS[provider].map(m => (
+                                    <option key={m.id} value={m.id}>{m.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                        {saving && <span style={{ fontSize: '11px', color: 'var(--green)', fontFamily: 'monospace' }}>Syncing to backend...</span>}
                     </div>
-                    <div className="custom-toggle active"><div className="knob" /></div>
                 </div>
-                <div className="setting-item glass-item">
-                    <div className="setting-info">
-                        <span className="setting-name">Transcription Cache</span>
-                        <span className="setting-desc">Store recent audio logs locally for faster access</span>
+
+                <div className="settings-group">
+                    <h3>General</h3>
+                    <div className="setting-item glass-item">
+                        <div className="setting-info">
+                            <span className="setting-name">Hardware Acceleration</span>
+                            <span className="setting-desc">Utilize GPU for rendering heavy animations</span>
+                        </div>
+                        <div className="custom-toggle active"><div className="knob" /></div>
                     </div>
-                    <div className="custom-toggle active"><div className="knob" /></div>
+                </div>
+
+                <div className="settings-group">
+                    <h3>Voice Inference</h3>
+                    <div className="setting-item glass-item">
+                        <div className="setting-info">
+                            <span className="setting-name">Automatic Captions</span>
+                            <span className="setting-desc">Generate subtitles for neural audio responses</span>
+                        </div>
+                        <div className="custom-toggle active"><div className="knob" /></div>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
-);
+    );
+};
 
 const App = () => {
     const [token, setToken] = useState(() => localStorage.getItem('dashboard_token') || sessionStorage.getItem('dashboard_token'));
@@ -676,9 +737,9 @@ const App = () => {
 
                 <div className="main-content">
                     {currentView === 'dashboard' && <AppContent token={token} onLogout={handleLogout} />}
-                    {currentView === 'chat' && <ChatPage onBack={() => setCurrentView('dashboard')} />}
+                    {currentView === 'chat' && <ChatPage onNavigate={setCurrentView} onLogout={handleLogout} />}
                     {currentView === 'logs' && <LogsView token={token} onLogout={handleLogout} />}
-                    {currentView === 'settings' && <SettingsView />}
+                    {currentView === 'settings' && <SettingsView token={token} />}
                 </div>
             </div>
 
