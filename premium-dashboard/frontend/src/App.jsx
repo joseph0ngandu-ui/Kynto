@@ -578,25 +578,36 @@ const AppContent = ({ token, onLogout }) => {
     );
 };
 
-const MODELS = {
-    groq: [
-        { id: 'llama3-70b-8192', name: 'LLaMA 3 (70B)' },
-        { id: 'mixtral-8x7b-32768', name: 'Mixtral (8x7B)' }
-    ],
-    anthropic: [
-        { id: 'claude-3-sonnet', name: 'Claude 3 Sonnet' },
-        { id: 'claude-3-opus', name: 'Claude 3 Opus' }
-    ],
-    openai: [
-        { id: 'gpt-4o', name: 'GPT-4o' },
-        { id: 'gpt-4-turbo', name: 'GPT-4 Turbo' }
-    ]
-};
-
 const SettingsView = ({ token }) => {
+    const [availableModels, setAvailableModels] = useState(null);
     const [provider, setProvider] = useState(() => localStorage.getItem('kynto_ai_provider') || 'groq');
     const [model, setModel] = useState(() => localStorage.getItem('kynto_ai_model') || 'llama3-70b-8192');
     const [saving, setSaving] = useState(false);
+
+    useEffect(() => {
+        const fetchModels = async () => {
+            try {
+                const res = await fetch(`${API_BASE_URL}/api/settings/models`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                setAvailableModels(data.models || { none: [{ id: 'none', name: 'No API Keys' }] });
+                
+                // Keep UI in sync with available options
+                const providers = Object.keys(data.models || {});
+                const savedProvider = localStorage.getItem('kynto_ai_provider');
+                
+                if (providers.length > 0 && !providers.includes(savedProvider)) {
+                    setProvider(providers[0]);
+                    setModel(data.models[providers[0]][0].id);
+                }
+            } catch (err) {
+                console.error('Failed to fetch models', err);
+                setAvailableModels({ error: [{ id: 'error', name: 'Failed to load models' }] });
+            }
+        };
+        fetchModels();
+    }, [token]);
 
     const handleSaveModel = async (newProvider, newModel) => {
         setProvider(newProvider);
@@ -633,28 +644,36 @@ const SettingsView = ({ token }) => {
                         </div>
                         
                         <div style={{ display: 'flex', gap: '12px', width: '100%' }}>
-                            <select 
-                                className="styled-select" 
-                                value={provider} 
-                                onChange={(e) => {
-                                    const p = e.target.value;
-                                    handleSaveModel(p, MODELS[p][0].id);
-                                }}
-                            >
-                                <option value="groq">Groq (Fast Inference)</option>
-                                <option value="anthropic">Anthropic</option>
-                                <option value="openai">OpenAI</option>
-                            </select>
+                            {!availableModels ? (
+                                <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Loading AI network topography...</span>
+                            ) : (
+                                <>
+                                    <select 
+                                        className="styled-select" 
+                                        value={provider} 
+                                        onChange={(e) => {
+                                            const p = e.target.value;
+                                            handleSaveModel(p, availableModels[p][0].id);
+                                        }}
+                                        disabled={availableModels.none || availableModels.error}
+                                    >
+                                        {Object.keys(availableModels).map(p => (
+                                            <option key={p} value={p}>{p.toUpperCase()}</option>
+                                        ))}
+                                    </select>
 
-                            <select 
-                                className="styled-select" 
-                                value={model} 
-                                onChange={(e) => handleSaveModel(provider, e.target.value)}
-                            >
-                                {MODELS[provider].map(m => (
-                                    <option key={m.id} value={m.id}>{m.name}</option>
-                                ))}
-                            </select>
+                                    <select 
+                                        className="styled-select" 
+                                        value={model} 
+                                        onChange={(e) => handleSaveModel(provider, e.target.value)}
+                                        disabled={availableModels.none || availableModels.error}
+                                    >
+                                        {(availableModels[provider] || availableModels[Object.keys(availableModels)[0]] || []).map(m => (
+                                            <option key={m.id} value={m.id}>{m.name}</option>
+                                        ))}
+                                    </select>
+                                </>
+                            )}
                         </div>
                         {saving && <span style={{ fontSize: '11px', color: 'var(--green)', fontFamily: 'monospace' }}>Syncing to backend...</span>}
                     </div>

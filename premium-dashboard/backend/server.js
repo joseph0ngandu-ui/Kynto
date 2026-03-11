@@ -635,4 +635,44 @@ app.post('/api/chat/voice', verifyToken, async (req, res) => {
     }
 });
 
+// Return available AI models based on active API keys
+app.get('/api/settings/models', verifyToken, (req, res) => {
+    const available = {};
+
+    if (process.env.GROQ_API_KEY) {
+        available.groq = [
+            { id: 'llama3-70b-8192', name: 'LLaMA 3 (70B)' },
+            { id: 'mixtral-8x7b-32768', name: 'Mixtral (8x7B)' }
+        ];
+    }
+    
+    if (process.env.ANTHROPIC_API_KEY) {
+        available.anthropic = [
+            { id: 'claude-3-sonnet', name: 'Claude 3 Sonnet' },
+            { id: 'claude-3-opus', name: 'Claude 3 Opus' }
+        ];
+    }
+
+    if (process.env.OPENAI_API_KEY) {
+        available.openai = [
+            { id: 'gpt-4o', name: 'GPT-4o' },
+            { id: 'gpt-4-turbo', name: 'GPT-4 Turbo' }
+        ];
+    }
+    
+    if (process.env.GEMINI_API_KEY) {
+        available.gemini = [
+            { id: 'gemini-1.5-pro-latest', name: 'Gemini 1.5 Pro' },
+            { id: 'gemini-1.5-flash-latest', name: 'Gemini 1.5 Flash' }
+        ];
+    }
+
+    // Always provide at least a fallback if empty so the UI doesn't crash
+    if (Object.keys(available).length === 0) {
+        available.none = [{ id: 'none', name: 'No API Keys Configured' }];
+    }
+
+    res.json({ models: available });
+});
+
 app.listen(3001, '0.0.0.0', () => console.log('Backend on 3001'));
