@@ -22,7 +22,7 @@ services:
   openclaw:
     image: alpine/openclaw:latest
     env_file: .env
-    command: ["node", "openclaw.mjs", "gateway", "--allow-unconfigured", "--bind", "lan"]
+    command: ["node", "openclaw.mjs", "gateway", "--allow-unconfigured", "--bind", "lan", "--port", "18889"]
     volumes:
       - ./.openclaw:/home/node/.openclaw
       - ./agent_workspace:/home/node/openclaw/workspace
