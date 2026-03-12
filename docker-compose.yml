@@ -20,7 +20,7 @@ services:
       start_period: 15s
 
   openclaw:
-    image: openclaw/openclaw:latest
+    image: alpine/openclaw:latest
     env_file: .env
     volumes:
       - ./.openclaw:/root/.openclaw
