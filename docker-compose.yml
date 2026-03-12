@@ -24,6 +24,7 @@ services:
     dns:
       - 1.1.1.1
       - 8.8.8.8
+    env_file: .env
     command: ["openclaw", "gateway", "run", "--allow-unconfigured", "--bind", "lan"]
     volumes:
       - ./.openclaw:/home/node/.openclaw
