@@ -384,7 +384,7 @@ app.post('/api/containers/:id/action', verifyToken, async (req, res) => {
 });
 
 // Kynto AI Chat Proxy (Async Pattern)
-const KYNTO_CORE_URL = process.env.KYNTO_CORE_URL || 'http://openclaw:18789/v1/chat/completions';
+const KYNTO_CORE_URL = process.env.KYNTO_CORE_URL || 'http://openclaw:19999/v1/chat/completions';
 const crypto = require('crypto');
 
 // In-memory task store
