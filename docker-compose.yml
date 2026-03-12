@@ -60,3 +60,4 @@ services:
 networks:
   kynto_stack_net:
     driver: bridge
+    name: kynto_stack_net
