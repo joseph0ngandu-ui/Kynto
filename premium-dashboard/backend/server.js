@@ -436,7 +436,7 @@ app.post('/api/chat', verifyToken, async (req, res) => {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${process.env.OPENCLAW_API_KEY || 'default'}` 
+                    'Authorization': 'Bearer cf08cd77c172b27b4359487daf32aed02b9783cb127ad561' 
                 },
                 body: JSON.stringify({
                     model: settings.model,
@@ -572,7 +572,7 @@ app.post('/api/conversations/:id/message', verifyToken, async (req, res) => {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${process.env.OPENCLAW_API_KEY || 'default'}`
+                    'Authorization': 'Bearer cf08cd77c172b27b4359487daf32aed02b9783cb127ad561'
                 },
                 body: JSON.stringify({
                     model: settings.model,
@@ -651,7 +651,7 @@ app.post('/api/chat/voice', verifyToken, async (req, res) => {
             method: 'POST',
             body: formData,
             headers: {
-                'Authorization': `Bearer ${process.env.OPENCLAW_API_KEY || 'default'}`
+                'Authorization': 'Bearer cf08cd77c172b27b4359487daf32aed02b9783cb127ad561'
             },
             signal: AbortSignal.timeout(60000)
         });
