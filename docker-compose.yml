@@ -23,8 +23,8 @@ services:
     image: alpine/openclaw:latest
     env_file: .env
     volumes:
-      - ./.openclaw:/root/.openclaw
-      - ./agent_workspace:/root/openclaw/workspace
+      - ./.openclaw:/home/node/.openclaw
+      - ./agent_workspace:/home/node/openclaw/workspace
     networks:
       - kynto_internal
     depends_on:
