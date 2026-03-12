@@ -384,7 +384,7 @@ app.post('/api/containers/:id/action', verifyToken, async (req, res) => {
 });
 
 // Kynto AI Chat Proxy (Async Pattern)
-const KYNTO_CORE_URL = process.env.KYNTO_CORE_URL || 'http://kynto-kynto_core-1:5000/execute';
+const KYNTO_CORE_URL = process.env.KYNTO_CORE_URL || 'http://openclaw:18789/v1/chat/completions';
 const crypto = require('crypto');
 
 // In-memory task store
@@ -423,28 +423,34 @@ app.post('/api/chat', verifyToken, async (req, res) => {
             const controller = new AbortController();
             const hardTimeout = setTimeout(() => controller.abort(), 600000); // 10 min hard limit
 
+            const settings = authDb.getSettings();
+            
+            // Convert history to OpenAI messages format
+            const messages = [
+                { role: 'system', content: 'You are Kynto. Follow the directives in AGENTS.md. Plan safely inside <thinking> tags.' },
+                ...(history || []).map(h => ({ role: h.role === 'assistant' ? 'assistant' : 'user', content: h.content })),
+                { role: 'user', content: message }
+            ];
+
             const response = await fetch(KYNTO_CORE_URL, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${process.env.OPENCLAW_API_KEY || 'default'}` 
+                },
                 body: JSON.stringify({
-                    system: 'You are Kynto. Plan safely inside <thinking> tags.',
-                    task: message,
-                    history: history || [],
-                    audio_file: null
+                    model: settings.model,
+                    messages: messages,
+                    stream: false
                 }),
                 signal: controller.signal
             });
 
             clearTimeout(hardTimeout);
             const data = await response.json();
-
-            let responseText = '';
-            if (data.files_changed && data.files_changed.length > 0) {
-                responseText = data.files_changed[0];
-            } else if (data.error_log) {
-                responseText = `Error: ${data.error_log}`;
-            }
-
+            
+            let responseText = data.choices?.[0]?.message?.content || 'Task completed with no output.';
+            
             responseText = responseText.replace(/<thinking>[\s\S]*?<\/thinking>/g, '').trim();
             // Handle <request_permission> — render as a dashboard confirmation prompt
             if (responseText.includes('<request_permission>')) {
@@ -555,15 +561,29 @@ app.post('/api/conversations/:id/message', verifyToken, async (req, res) => {
         try {
             const controller = new AbortController();
             const hardTimeout = setTimeout(() => controller.abort(), 600000);
+            
+            const settings = authDb.getSettings();
+            const messages = [
+                { role: 'system', content: 'You are Kynto. Follow the directives in AGENTS.md. Plan safely inside <thinking> tags.' },
+                ...history.map(h => ({ role: h.role === 'assistant' ? 'assistant' : 'user', content: h.content }))
+            ];
+
             const response = await fetch(KYNTO_CORE_URL, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ system: 'You are Kynto. Plan safely inside <thinking> tags.', task: message, history, audio_file: null }),
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${process.env.OPENCLAW_API_KEY || 'default'}`
+                },
+                body: JSON.stringify({
+                    model: settings.model,
+                    messages: messages,
+                    stream: false
+                }),
                 signal: controller.signal
             });
             clearTimeout(hardTimeout);
             const data = await response.json();
-            let text = (data.files_changed && data.files_changed[0]) || data.error_log || 'No output.';
+            let text = data.choices?.[0]?.message?.content || 'No output.';
             text = text.replace(/<thinking>[\s\S]*?<\/thinking>/g, '').trim();
             // Handle <request_permission> — render as a dashboard confirmation prompt
             if (text.includes('<request_permission>')) {
@@ -595,40 +615,53 @@ app.post('/api/conversations/:id/message', verifyToken, async (req, res) => {
     });
 });
 
-// Voice transcription via Whisper on kynto_core
+// Save AI Model Settings
+app.post('/api/settings/model', verifyToken, (req, res) => {
+    const { provider, model } = req.body;
+    if (!provider || !model) return res.status(400).json({ error: 'MISSING_FIELDS' });
+    
+    authDb.updateSettings({ provider, model });
+    addAuditLog('SETTINGS', `AI model updated to ${model} (${provider})`, 'success');
+    res.json({ success: true });
+});
+
+app.get('/api/settings/current-model', verifyToken, (req, res) => {
+    res.json(authDb.getSettings());
+});
+
+// Voice transcription via OpenClaw / Whisper
 app.post('/api/chat/voice', verifyToken, async (req, res) => {
     const { audio } = req.body; // base64-encoded audio
     if (!audio) return res.status(400).json({ error: 'MISSING_AUDIO' });
 
     try {
-        // Write to temp file, send to kynto_core's whisper
+        // NOTE: OpenClaw standard endpoint for audio is v1/audio/transcriptions
+        // We need to convert base64 to File object/Multipart for standard OpenAI API
         const fs = require('fs');
         const os = require('os');
-        const tmpFile = require('path').join(os.tmpdir(), `voice_${Date.now()}.webm`);
+        const path = require('path');
+        const tmpFile = path.join(os.tmpdir(), `voice_${Date.now()}.webm`);
         fs.writeFileSync(tmpFile, Buffer.from(audio, 'base64'));
 
-        // Use kynto_core's bash to transcribe
-        const response = await fetch(KYNTO_CORE_URL, {
+        const formData = new FormData();
+        formData.append('file', fs.createReadStream(tmpFile), { filename: 'voice.webm' });
+        formData.append('model', 'whisper-1');
+
+        const response = await fetch(KYNTO_CORE_URL.replace('/chat/completions', '/audio/transcriptions'), {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                system: 'Transcribe the audio and return ONLY the transcription text. Nothing else.',
-                task: 'Transcribe the uploaded audio file.',
-                history: [],
-                audio_file: audio
-            }),
+            body: formData,
+            headers: {
+                'Authorization': `Bearer ${process.env.OPENCLAW_API_KEY || 'default'}`
+            },
             signal: AbortSignal.timeout(60000)
         });
+        
         const data = await response.json();
-        const text = data.transcription || 'Could not transcribe audio.';
+        const text = data.text || 'Could not transcribe audio.';
         addAuditLog('VOICE', `Transcription complete: "${text.substring(0, 30)}${text.length > 30 ? '...' : ''}"`, 'info');
 
-        // Cleanup
         try { fs.unlinkSync(tmpFile); } catch { }
-
-        // Clean thinking tags if any leaked
-        const cleanText = text.replace(/<thinking>[\s\S]*?<\/thinking>/g, '').trim();
-        res.json({ transcription: cleanText });
+        res.json({ transcription: text });
     } catch (e) {
         console.error('[VOICE_ERROR]', e.message);
         res.status(500).json({ error: 'TRANSCRIPTION_FAILED' });
