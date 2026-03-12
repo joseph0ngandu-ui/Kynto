@@ -9,7 +9,7 @@ services:
       - ./gateway_service:/app
       - ./media_sandbox:/tmp/kynto_media
     networks:
-      - kynto_internal
+      - kynto_stack_net
     restart: unless-stopped
     healthcheck:
       # Slack SocketMode bot — no HTTP server; confirm process PID 1 is alive
@@ -27,7 +27,7 @@ services:
       - ./.openclaw:/home/node/.openclaw
       - ./agent_workspace:/home/node/openclaw/workspace
     networks:
-      - kynto_internal
+      - kynto_stack_net
     depends_on:
       docker_mcp_bridge:
         condition: service_healthy
@@ -48,7 +48,7 @@ services:
       - ALLOWED_ACTIONS=list,logs,restart,start,stop
       - ENFORCE_APPEND_ONLY_LOGS=true
     networks:
-      - kynto_internal
+      - kynto_stack_net
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/system/info"]
@@ -58,5 +58,5 @@ services:
       start_period: 10s
 
 networks:
-  kynto_internal:
+  kynto_stack_net:
     driver: bridge

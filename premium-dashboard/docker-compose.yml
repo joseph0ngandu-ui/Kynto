@@ -10,7 +10,7 @@ services:
       - "3001:3001"
     networks:
       - dashboard_net
-      - kynto_kynto_internal
+      - kynto_stack_net
     env_file: ../.env
     restart: always
     healthcheck:
@@ -47,5 +47,6 @@ volumes:
 networks:
   dashboard_net:
     driver: bridge
-  kynto_kynto_internal:
+  kynto_stack_net:
     external: true
+    name: kynto_stack_net
