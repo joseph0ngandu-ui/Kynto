@@ -1,4 +1,4 @@
-const CACHE = 'kynto-v1';
+const CACHE = 'kynto-v2';
 const PRECACHE = ['/', '/index.html'];
 
 self.addEventListener('install', e => {
