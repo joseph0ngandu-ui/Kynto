@@ -65,6 +65,7 @@ services:
 
 networks:
   kynto_stack_net:
+    name: kynto_stack_net
     driver: bridge
     ipam:
       config:
