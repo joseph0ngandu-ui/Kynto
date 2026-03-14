@@ -46,22 +46,9 @@ const getEmail = () => {
     return readDb().email;
 };
 
-const getSettings = () => {
-    const db = readDb();
-    return db.settings || { provider: 'gemini', model: 'gemini-1.5-flash-latest' };
-};
-
-const updateSettings = (newSettings) => {
-    const db = readDb();
-    db.settings = { ...(db.settings || {}), ...newSettings };
-    writeDb(db);
-};
-
 module.exports = {
     isInitialized,
     saveAccount,
     verifyPassword,
-    getEmail,
-    getSettings,
-    updateSettings
+    getEmail
 };

@@ -19,16 +19,17 @@ services:
       retries: 3
       start_period: 15s
 
-  openclaw:
-    image: alpine/openclaw:latest
-    dns:
-      - 1.1.1.1
-      - 8.8.8.8
+  kynto_core:
+    build: ./kynto_core
     env_file: .env
-    command: ["openclaw", "gateway", "run", "--allow-unconfigured", "--bind", "lan"]
+    environment:
+      - MCP_SERVER_URL=http://docker_mcp_bridge:8000
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - GROQ_API_KEY=${GROQ_API_KEY}
     volumes:
-      - ./.openclaw:/home/node/.openclaw
-      - ./agent_workspace:/home/node/openclaw/workspace
+      - ./kynto_core/cli_wrapper.py:/home/kynto_agent/sandbox/cli_wrapper.py
+      - ./media_sandbox:/tmp/kynto_media:ro
+      - ./agent_workspace:/home/kynto_agent/workspace
     networks:
       - kynto_stack_net
     depends_on:
@@ -36,10 +37,11 @@ services:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "openclaw", "gateway", "status"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
+      # aiohttp server on port 5000
+      test: ["CMD-SHELL", "python3 -c \"import socket; s=socket.create_connection(('localhost',5000),timeout=3); s.close()\""]
+      interval: 20s
+      timeout: 8s
+      retries: 3
       start_period: 20s
 
   docker_mcp_bridge:
@@ -64,7 +66,6 @@ services:
 networks:
   kynto_stack_net:
     driver: bridge
-    name: kynto_stack_net
     ipam:
       config:
         - subnet: 172.29.0.0/16
